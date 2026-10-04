@@ -1,0 +1,17 @@
+pandas>=2.1
+numpy>=1.26
+geopandas>=0.14
+shapely>=2.0
+pyogrio>=0.7
+pyproj>=3.6
+sqlalchemy>=2.0
+geoalchemy2>=0.14
+psycopg2-binary>=2.9
+libpysal>=4.9
+esda>=2.5
+scipy>=1.11
+matplotlib>=3.8
+seaborn>=0.13
+jupyterlab>=4.0
+python-dotenv>=1.0
+requests>=2.31

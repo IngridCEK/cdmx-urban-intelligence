@@ -1,0 +1,1 @@
+-- TODO (Persona C): carga y validacion de conteos / llaves / relaciones.

@@ -1,0 +1,13 @@
+# Datos (pesados): se descargan con las instrucciones del README
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Secretos y entorno
+.env
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.DS_Store

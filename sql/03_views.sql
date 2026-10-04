@@ -1,0 +1,1 @@
+-- TODO (Persona C): vistas analiticas con los KPIs del proyecto.

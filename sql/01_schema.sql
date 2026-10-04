@@ -1,0 +1,3 @@
+-- TODO (Persona C): dimensiones y hechos del Data Warehouse.
+-- Define el GRANO de cada tabla de hechos en un comentario antes de crearla.
+-- Ejecutar:  docker compose exec -T db psql -U dw_user -d urban_dw < sql/01_schema.sql
