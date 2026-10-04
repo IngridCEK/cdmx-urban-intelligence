@@ -44,11 +44,35 @@ Los delitos (columnas `latitud` y `longitud`) se convierten a puntos en EPSG:432
 _TODO_
 
 ## 5. PostgreSQL/PostGIS and Data Warehouse model
-Hechos, dimensiones, grano y relaciones. _TODO_
+The Data Warehouse uses a dimensional model based on the urban AGEB as the main geographic unit of analysis. CVEGEO is the main integration key between geographic, crime, demographic, and economic information.
+
+The proposed dimensions are:
+
+dim_geografia: one row per urban AGEB, including CVEGEO, alcaldía, area, and geometry.
+dim_fecha: one row per calendar date.
+dim_delito: crime classification information.
+dim_actividad_economica: SCIAN and economic activity classifications.
+
+The proposed fact tables are:
+
+fact_delitos: one row per crime incident/case.
+fact_poblacion: population measures by urban AGEB and demographic breakdown.
+fact_establecimientos: one row per economic establishment.
+
+The detailed grain, attributes, relationships, and KPI support are documented in docs/warehouse_design.md.
 
 ## 6. KPI definitions and formulas
-_TODO_
+The Data Warehouse is designed to support the following KPIs:
 
+KPI	Formula
+Total Crime Incidents	Count of crime incidents by CVEGEO
+Crime Rate	Crime incidents / total population × 1,000
+Population Density	Total population / area_km2
+Business Density	Establishments / area_km2
+Retail Density	Retail establishments / area_km2
+Service Density	Service establishments / area_km2
+
+The required source variables and KPI dependencies are documented in docs/kpi_variables.md
 ## 7. Assumptions, data-quality issues and limitations
 _TODO_
 
