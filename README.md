@@ -10,11 +10,35 @@ _TODO_
 |---|---|---|---|---|
 | Demografica | INEGI Censo 2020 (por AGEB/manzana) | | | |
 | Economica | INEGI DENUE | | | |
-| Geografica | INEGI Marco Geoestadistico | | | |
-| Seguridad | FGJ CDMX - Carpetas de investigacion (Portal de Datos Abiertos CDMX) | Carpeta/incidente con lat/lon | categoria_delito, fecha_hecho, hora_hecho, latitud, longitud | |
+| Geografica | INEGI Marco Geoestadistico, Censo 2020 (entidad 09) | Un poligono por AGEB urbana | `CVEGEO`, geometria (`09a.shp`), alcaldias (`09mun.shp`) | 4 oct 2026 |
+| Seguridad | FGJ CDMX - Carpetas de investigacion 2023 | Una fila por carpeta de investigacion (242,392) | `categoria_delito`, `fecha_hecho`, `hora_hecho`, `alcaldia_catalogo`, `latitud`, `longitud` | 4 oct 2026 |Carpeta/incidente con lat/lon | categoria_delito, fecha_hecho, hora_hecho, latitud, longitud | |
 
 ## 3. Geographic strategy
-Alternativas consideradas, unidad elegida y integracion lat/lon -> poligono. _TODO_
+Alternativas consideradas, unidad elegida y integracion lat/lon -> poligono. 
+**Unidad de analisis elegida: AGEB urbana** (INEGI, Marco Geoestadistico del Censo 2020, entidad 09). El analisis cubre <2431> AGEB urbanas.
+
+### Alternativas consideradas
+| Unidad | Motivo de descarte |
+|---|---|
+| Alcaldia | Solo 16 unidades; demasiado gruesa para medir autocorrelacion espacial |
+| Colonia | No existe poligono oficial de INEGI ni datos censales a ese nivel |
+| Codigo postal | No es cartografia oficial de INEGI y el Censo no se publica por CP, habria que interpolar |
+| Manzana | El Censo suprime valores menores a 3 por privacidad y los delitos quedarian dispersos, con muchos ceros |
+| **AGEB urbana** | Poligono y Censo oficiales; los puntos de delitos y DENUE se integran por spatial join |
+
+### Integracion de lat/lon con poligonos
+Los delitos (columnas `latitud` y `longitud`) se convierten a puntos en EPSG:4326, se reproyectan al CRS de los poligonos (PROJCS["MEXICO_ITRF_2008_LCC",GEOGCS["ITRF2008",DATUM["International_Terrestrial_Reference_Frame_2008",SPHEROID["GRS 1980",6378137,298.257222101,AUTHORITY["EPSG","7019"]],AUTHORITY["EPSG","1061"]],PRIMEM["Greenwich",0],UNIT["Degree",0.0174532925199433]],PROJECTION["Lambert_Conformal_Conic_2SP"],PARAMETER["latitude_of_origin",12],PARAMETER["central_meridian",-102],PARAMETER["standard_parallel_1",17.5],PARAMETER["standard_parallel_2",29.5],PARAMETER["false_easting",2500000],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH]]) y se asignan a una AGEB con un spatial join (`predicate="within"`). La clave de enlace es `CVEGEO` (13 caracteres).
+
+### Resultados de la integracion (delitos 2023)
+| Categoria | Registros | % |
+|---|---|---|
+| Total | 242,392 | 100 |
+| Asignados a una AGEB urbana | 227,837 | 94.00 |
+| Sin coordenadas validas | 14,147 | 5.84 |
+| Dentro de la CDMX, fuera de AGEB urbana | 357 | 0.15 |
+| Con coordenadas fuera de la CDMX | 51 | 0.02 |
+
+**Validacion:** la alcaldia registrada en el CSV coincide con la obtenida por spatial join en el 99.86% de los casos.
 
 ## 4. ETL pipeline
 _TODO_
