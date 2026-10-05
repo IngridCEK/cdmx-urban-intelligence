@@ -15,7 +15,7 @@ _TODO_
 
 ## 3. Geographic strategy
 Alternativas consideradas, unidad elegida y integracion lat/lon -> poligono. 
-**Unidad de analisis elegida: AGEB urbana** (INEGI, Marco Geoestadistico del Censo 2020, entidad 09). El analisis cubre <2431> AGEB urbanas.
+**Unidad de analisis elegida: AGEB urbana** (INEGI, Marco Geoestadistico del Censo 2020, entidad 09). El analisis cubre 2,431 AGEB urbanas.
 
 ### Alternativas consideradas
 | Unidad | Motivo de descarte |
@@ -25,6 +25,17 @@ Alternativas consideradas, unidad elegida y integracion lat/lon -> poligono.
 | Codigo postal | No es cartografia oficial de INEGI y el Censo no se publica por CP, habria que interpolar |
 | Manzana | El Censo suprime valores menores a 3 por privacidad y los delitos quedarian dispersos, con muchos ceros |
 | **AGEB urbana** | Poligono y Censo oficiales; los puntos de delitos y DENUE se integran por spatial join |
+
+### Prueba de claves Censo vs `09a.shp`
+
+Se comparó la `CVEGEO` del Censo 2020 contra la capa `09a.shp` del Marco Geoestadístico. La capa geográfica contiene **2,431 AGEB** y el Censo contiene **2,433 filas de total por AGEB**.
+
+- **CVEGEO coincidentes:** 2,431
+- **AGEB del Censo sin coincidencia en `09a.shp`:** 2
+- **Claves sin coincidencia:** `0901101101107` y `0901201351227`
+- **AGEB presentes en `09a.shp` y ausentes del Censo:** 0
+
+Las dos claves adicionales del Censo se conservan en `censo_2020_ageb.csv` porque forman parte de las 2,433 filas de total por AGEB; no se eliminan del ETL.
 
 ### Integracion de lat/lon con poligonos
 Los delitos (columnas `latitud` y `longitud`) se convierten a puntos en EPSG:4326, se reproyectan al CRS de los poligonos (PROJCS["MEXICO_ITRF_2008_LCC",GEOGCS["ITRF2008",DATUM["International_Terrestrial_Reference_Frame_2008",SPHEROID["GRS 1980",6378137,298.257222101,AUTHORITY["EPSG","7019"]],AUTHORITY["EPSG","1061"]],PRIMEM["Greenwich",0],UNIT["Degree",0.0174532925199433]],PROJECTION["Lambert_Conformal_Conic_2SP"],PARAMETER["latitude_of_origin",12],PARAMETER["central_meridian",-102],PARAMETER["standard_parallel_1",17.5],PARAMETER["standard_parallel_2",29.5],PARAMETER["false_easting",2500000],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH]]) y se asignan a una AGEB con un spatial join (`predicate="within"`). La clave de enlace es `CVEGEO` (13 caracteres).
