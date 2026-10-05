@@ -24,18 +24,3 @@ Para cada AGEB se cuenta el número de establecimientos asignados por sector SCI
 
 Se **incluyen tanto unidades Fijas como Semifijas**. No se excluyen los establecimientos semifijos porque el DENUE los registra como unidades económicas y el KPI de actividad económica pretende contar el universo disponible de establecimientos. En el archivo 05_2026, los valores observados de `tipoUniEco` son `Fijo` y `Semifijo`; no aparece una tercera categoría de ambulante que deba eliminarse.
 
-## Estratos `per_ocu` y orden para `dim_tamano`
-
-`per_ocu` es categórico; no se interpreta como un número continuo de empleados. La dimensión de tamaño debe conservar el texto original y una clave ordinal `orden_tamano`.
-
-| orden_tamano | per_ocu |
-|---:|---|
-| 1 | `0 a 5 personas` |
-| 2 | `6 a 10 personas` |
-| 3 | `11 a 30 personas` |
-| 4 | `31 a 50 personas` |
-| 5 | `51 a 100 personas` |
-| 6 | `101 a 250 personas` |
-| 7 | `251 y más personas` |
-
-Estos siete valores son los valores exactos observados en el DENUE 05_2026 de CDMX.
