@@ -1,5 +1,12 @@
 """ETL de delitos (FGJ CDMX): limpieza, puntos y spatial join con AGEB.
 
+Conserva TODOS los registros del CSV (trazabilidad). Cada uno recibe un
+estatus de asignacion:
+    asignado               -> cae dentro de una AGEB urbana (CVEGEO no nulo)
+    dentro_cdmx_sin_ageb   -> dentro de la CDMX pero fuera de toda AGEB urbana
+    fuera_cdmx             -> tiene coordenadas pero caen fuera de la CDMX
+    sin_coordenadas_validas-> sin latitud/longitud utiles (nulas, cero o fuera de rango)
+
 Uso (dentro del contenedor):
     python -m src.etl.crime
     python -m src.etl.crime --csv carpetas_fgj_2022.csv
@@ -18,8 +25,11 @@ from src.geo.polygons import load_agebs, load_municipios
 
 DEFAULT_CSV = "carpetas_fgj_2023.csv"
 REQUIRED_COLUMNS = [
-    "_id", "fecha_inicio", "fecha_hecho", "delito", "categoria_delito",
-    "alcaldia_catalogo", "latitud", "longitud",
+    "_id", "fecha_inicio", "fecha_hecho", "hora_hecho", "delito",
+    "categoria_delito", "alcaldia_catalogo", "latitud", "longitud",
+]
+STATUS_ORDER = [
+    "asignado", "dentro_cdmx_sin_ageb", "fuera_cdmx", "sin_coordenadas_validas",
 ]
 
 
@@ -51,12 +61,18 @@ def clean(df: pd.DataFrame):
     for col in ["delito", "categoria_delito", "alcaldia_catalogo"]:
         df[col] = df[col].astype("string").str.strip()
 
+    # Hora entera (0-23) para dim_hora; la columna original se conserva
+    df["hora"] = pd.to_datetime(df["hora_hecho"], format="%H:%M:%S", errors="coerce").dt.hour
+
     report["registros_tras_limpieza"] = len(df)
     return df, report
 
 
-def to_points(df: pd.DataFrame, target_crs):
-    """Convierte a puntos los registros con coordenadas utiles. Devuelve (gdf, reporte)."""
+def split_by_coordinates(df: pd.DataFrame, target_crs):
+    """Separa registros con coordenadas utiles (-> puntos) de los que no.
+
+    Devuelve (puntos, sin_coordenadas, reporte).
+    """
     sin_coord = df["latitud"].isna() | df["longitud"].isna()
     en_cero = (df["latitud"] == 0) | (df["longitud"] == 0)
     fuera_rango = ~df["latitud"].between(-90, 90) | ~df["longitud"].between(-180, 180)
@@ -68,13 +84,14 @@ def to_points(df: pd.DataFrame, target_crs):
         "coordenadas_fuera_de_rango": int((fuera_rango & ~sin_coord & ~en_cero).sum()),
         "con_coordenadas_utiles": int(ok.sum()),
     }
+
     valid = df[ok]
     pts = gpd.GeoDataFrame(
         valid,
         geometry=gpd.points_from_xy(valid["longitud"], valid["latitud"]),
         crs="EPSG:4326",
     ).to_crs(target_crs)
-    return pts, report
+    return pts, df[~ok].copy(), report
 
 
 def _first_match(left, right, cols):
@@ -84,14 +101,31 @@ def _first_match(left, right, cols):
 
 
 def assign_polygons(pts, agebs, munis):
-    """Asigna alcaldia (poligono) y CVEGEO de AGEB a cada punto."""
+    """Asigna alcaldia (poligono), CVEGEO de AGEB y estatus a cada punto."""
     j_mun = _first_match(pts, munis, ["NOMGEO"])
-    pts["dentro_cdmx"] = j_mun["NOMGEO"].notna()
+    dentro_cdmx = j_mun["NOMGEO"].notna()
     pts["alcaldia_geo"] = j_mun["NOMGEO"]
 
     j_ageb = _first_match(pts, agebs, ["CVEGEO"])
     pts["CVEGEO"] = j_ageb["CVEGEO"]
+
+    pts["estatus_asignacion"] = "fuera_cdmx"
+    pts.loc[dentro_cdmx, "estatus_asignacion"] = "dentro_cdmx_sin_ageb"
+    pts.loc[pts["CVEGEO"].notna(), "estatus_asignacion"] = "asignado"
     return pts
+
+
+def build_final(pts, sin_coord, crs):
+    """Une puntos asignados y registros sin coordenadas en una sola tabla."""
+    sin_coord = sin_coord.copy()
+    sin_coord["alcaldia_geo"] = None
+    sin_coord["CVEGEO"] = None
+    sin_coord["estatus_asignacion"] = "sin_coordenadas_validas"
+    sin_coord = gpd.GeoDataFrame(
+        sin_coord, geometry=gpd.GeoSeries([None] * len(sin_coord), index=sin_coord.index, crs=crs)
+    )
+    final = pd.concat([pts, sin_coord]).sort_index()
+    return gpd.GeoDataFrame(final, geometry="geometry", crs=crs)
 
 
 def _norm(value):
@@ -101,13 +135,16 @@ def _norm(value):
     return text.lower().strip()
 
 
-def summarize(pts, report):
-    dentro = pts[pts["dentro_cdmx"]]
+def summarize(final, report):
+    counts = final["estatus_asignacion"].value_counts()
+    status = {s: int(counts.get(s, 0)) for s in STATUS_ORDER}
+    report["estatus_asignacion"] = status
+    report["reconciliacion_ok"] = sum(status.values()) == report["registros_tras_limpieza"]
+    report["asignados_a_ageb"] = status["asignado"]
+    report["pct_asignados_a_ageb"] = round(status["asignado"] / report["registros_crudos"] * 100, 2)
+
+    dentro = final[final["estatus_asignacion"].isin(["asignado", "dentro_cdmx_sin_ageb"])]
     coinciden = dentro["alcaldia_catalogo"].map(_norm) == dentro["alcaldia_geo"].map(_norm)
-    report["con_coordenadas_fuera_de_cdmx"] = int((~pts["dentro_cdmx"]).sum())
-    report["dentro_de_cdmx_sin_ageb_urbana"] = int((pts["dentro_cdmx"] & pts["CVEGEO"].isna()).sum())
-    report["asignados_a_ageb"] = int(pts["CVEGEO"].notna().sum())
-    report["pct_asignados_a_ageb"] = round(report["asignados_a_ageb"] / report["registros_crudos"] * 100, 2)
     report["pct_coincidencia_alcaldia"] = round(float(coinciden.mean()) * 100, 2) if len(dentro) else None
     return report
 
@@ -118,21 +155,24 @@ def run(csv_name: str = DEFAULT_CSV):
 
     df = extract(csv_name)
     df, rep_clean = clean(df)
-    pts, rep_pts = to_points(df, agebs.crs)
+    pts, sin_coord, rep_pts = split_by_coordinates(df, agebs.crs)
     pts = assign_polygons(pts, agebs, munis)
+    final = build_final(pts, sin_coord, agebs.crs)
 
-    report = summarize(pts, {**rep_clean, **rep_pts})
+    report = summarize(final, {**rep_clean, **rep_pts})
+    if not report["reconciliacion_ok"]:
+        raise RuntimeError("La reconciliacion de registros no cuadra: revisa el reporte")
 
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
     stem = csv_name.rsplit(".", 1)[0].replace("carpetas_fgj_", "delitos_")
     out_gpkg = PROCESSED_DIR / f"{stem}_ageb.gpkg"
     out_json = PROCESSED_DIR / f"{stem}_reporte_calidad.json"
-    pts.to_file(out_gpkg, layer="delitos", driver="GPKG")
+    final.to_file(out_gpkg, layer="delitos", driver="GPKG")
     out_json.write_text(json.dumps(report, indent=2, ensure_ascii=False))
 
     print(json.dumps(report, indent=2, ensure_ascii=False))
     print("Guardado:", out_gpkg)
-    return pts, report
+    return final, report
 
 
 if __name__ == "__main__":
