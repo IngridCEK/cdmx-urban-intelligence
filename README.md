@@ -8,8 +8,8 @@ _TODO_
 ## 2. Data sources (original grain and relevant variables)
 | Capa | Fuente | Grano original | Variables clave | Fecha de descarga |
 |---|---|---|---|---|
-| Demografica | INEGI Censo 2020 (por AGEB/manzana) | | | |
-| Economica | INEGI DENUE | | | |
+| Demografica | INEGI Censo 2020, Principales resultados por AGEB y manzana urbana (entidad 09) | Una fila por entidad, municipio, localidad, AGEB y manzana (68,941 filas); se usan las 2,433 filas de total por AGEB (`MZA`=000) | `POBTOT`, `POB0_14`, `POB15_64`, `POB65_MAS`, `P_12YMAS`, `PEA`; clave `ENTIDAD`+`MUN`+`LOC`+`AGEB` -> `CVEGEO` | 4 oct 2026 |
+| Economica | INEGI DENUE 05_2026 (CDMX) | Una fila por establecimiento (462,732) con lat/lon y claves de AGEB | `id`, `codigo_act` (SCIAN), `nombre_act`, `per_ocu`, `latitud`, `longitud`, `ageb` | 4 oct 2026 |
 | Geografica | INEGI Marco Geoestadistico, Censo 2020 (entidad 09) | Un poligono por AGEB urbana | `CVEGEO`, geometria (`09a.shp`), alcaldias (`09mun.shp`) | 4 oct 2026 |
 | Seguridad | FGJ CDMX - Carpetas de investigacion 2023 | Una fila por carpeta de investigacion (242,392) | `categoria_delito`, `fecha_hecho`, `hora_hecho`, `alcaldia_catalogo`, `latitud`, `longitud` | 4 oct 2026 |Carpeta/incidente con lat/lon | categoria_delito, fecha_hecho, hora_hecho, latitud, longitud | |
 
