@@ -8,8 +8,8 @@ _TODO_
 ## 2. Data sources (original grain and relevant variables)
 | Capa | Fuente | Grano original | Variables clave | Fecha de descarga |
 |---|---|---|---|---|
-| Demografica | INEGI Censo 2020 (por AGEB/manzana) | | | |
-| Economica | INEGI DENUE | | | |
+| Demografica | INEGI Censo 2020, Principales resultados por AGEB y manzana urbana (entidad 09) | Una fila por entidad, municipio, localidad, AGEB y manzana (68,941 filas); se usan las 2,433 filas de total por AGEB (`MZA`=000) | `POBTOT`, `POB0_14`, `POB15_64`, `POB65_MAS`, `P_12YMAS`, `PEA`; clave `ENTIDAD`+`MUN`+`LOC`+`AGEB` -> `CVEGEO` | 4 oct 2026 |
+| Economica | INEGI DENUE 05_2026 (CDMX) | Una fila por establecimiento (462,732) con lat/lon y claves de AGEB | `id`, `codigo_act` (SCIAN), `nombre_act`, `per_ocu`, `latitud`, `longitud`, `ageb` | 4 oct 2026 |
 | Geografica | INEGI Marco Geoestadistico, Censo 2020 (entidad 09) | Un poligono por AGEB urbana | `CVEGEO`, geometria (`09a.shp`), alcaldias (`09mun.shp`) | 4 oct 2026 |
 | Seguridad | FGJ CDMX - Carpetas de investigacion 2023 | Una fila por carpeta de investigacion (242,392) | `categoria_delito`, `fecha_hecho`, `hora_hecho`, `alcaldia_catalogo`, `latitud`, `longitud` | 4 oct 2026 |Carpeta/incidente con lat/lon | categoria_delito, fecha_hecho, hora_hecho, latitud, longitud | |
 
@@ -41,7 +41,25 @@ Los delitos (columnas `latitud` y `longitud`) se convierten a puntos en EPSG:432
 **Validacion:** la alcaldia registrada en el CSV coincide con la obtenida por spatial join en el 99.86% de los casos.
 
 ## 4. ETL pipeline
-_TODO_
+
+Flujo general: **RAW → CLEAN → SPATIAL JOIN → POSTGRESQL DW**. Los archivos crudos de `data/raw/` nunca se modifican.
+
+### 4.1 Poligonos y delitos
+**Ejecucion:** `docker compose exec app python -m src.etl.crime` (parametro opcional `--csv` para otro año).
+
+| Paso | Codigo | Que hace |
+|---|---|---|
+| Extract | `src/etl/crime.py` | Lee el CSV de la FGJ y valida las columnas requeridas |
+| Poligonos | `src/geo/polygons.py` | Carga AGEB urbanas y alcaldias, corrige geometrias invalidas, verifica `CVEGEO` unica de 13 caracteres, calcula `area_km2` en EPSG:32614 |
+| Clean | `crime.py` | Elimina duplicados por `_id`, convierte tipos y fechas, limpia texto |
+| Puntos | `crime.py` | Descarta registros sin coordenadas o en cero y crea geometrias de punto (EPSG:4326, reproyectadas al CRS de los poligonos) |
+| Spatial join | `crime.py` | Asigna alcaldia y `CVEGEO` con `predicate="within"` |
+| Salida | `data/processed/` | GeoPackage de delitos con su AGEB y un reporte de calidad en JSON |
+
+**Resultados (delitos 2023):** 242,392 registros crudos; 0 duplicados; 227,837 asignados a una AGEB urbana (94.00%); coincidencia de alcaldia con el poligono: 99.86%.
+
+### 4.2 Censo y DENUE
+_Pendiente (Persona B)._
 
 ## 5. PostgreSQL/PostGIS and Data Warehouse model
 The Data Warehouse uses a dimensional model based on the urban AGEB as the main geographic unit of analysis. CVEGEO is the main integration key between geographic, crime, demographic, and economic information.
