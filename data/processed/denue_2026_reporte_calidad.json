@@ -19,6 +19,47 @@
     "no_coinciden": 791,
     "sin_clave_denue": 0
   },
+  "fuera_del_poligono": {
+    "tolerancia_borde_km": 100.0,
+    "puntos_fuera_del_poligono": 14,
+    "tolerados_como_dentro_cdmx": 11,
+    "fuera_cdmx": 3,
+    "distancia_km_tolerados": {
+      "min": 0.0,
+      "max": 2.189
+    },
+    "distancia_km_fuera_cdmx": {
+      "min": 314.769,
+      "max": 2274.484
+    }
+  },
+  "establecimientos_por_grupo_actividad": {
+    "comercio al por menor": 212251,
+    "servicios": 192925,
+    "otro": 57556
+  },
+  "establecimientos_por_sector": {
+    "11": 48,
+    "21": 41,
+    "22": 677,
+    "23": 1655,
+    "31-33": 32316,
+    "43": 15525,
+    "46": 212251,
+    "48-49": 3844,
+    "51": 1729,
+    "52": 3977,
+    "53": 5159,
+    "54": 11583,
+    "55": 194,
+    "56": 5487,
+    "61": 10591,
+    "62": 23400,
+    "71": 4931,
+    "72": 58167,
+    "81": 67707,
+    "93": 3450
+  },
   "agebs_con_establecimientos": 2420,
   "agebs_sin_establecimientos": 11
 }
