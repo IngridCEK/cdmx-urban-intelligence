@@ -1,43 +1,54 @@
 services:
   db:
     image: postgis/postgis:16-3.4
-    # Mac con chip M y la imagen falla? Descomenta la siguiente linea:
-    # platform: linux/amd64
     container_name: urban_dw_db
     environment:
-      POSTGRES_USER: ${DB_USER:-dw_user}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-dw_pass}
-      POSTGRES_DB: ${DB_NAME:-urban_dw}
+      POSTGRES_DB: urban_dw
+      POSTGRES_USER: dw_user
+      POSTGRES_PASSWORD: dw_pass
     ports:
-      - "${DB_PORT:-5432}:5432"
+    - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./sql/00_extensions.sql:/docker-entrypoint-initdb.d/00_extensions.sql:ro
+      - ./sql/01_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-dw_user} -d ${DB_NAME:-urban_dw}"]
+      test: ["CMD-SHELL", "pg_isready -U dw_user -d urban_dw"]
       interval: 5s
       timeout: 5s
       retries: 10
 
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: urban_dw_app
+    working_dir: /work
+    volumes:
+      - .:/work
+    ports:
+      - "8888:8888"
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: urban_dw
+      DB_USER: dw_user
+      DB_PASSWORD: dw_pass
+      STUDY_ENT: "09"
+      STUDY_MUN: ""
+      WORK_CRS: EPSG:32614
     depends_on:
       db:
         condition: service_healthy
-    env_file:
-      - .env
-    environment:
-      DB_HOST: db
-      DB_PORT: 5432
-    volumes:
-      - .:/work
-    working_dir: /work
-    ports:
-      - "8888:8888"
-    command: >
-      jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root
-      --ServerApp.token='' --ServerApp.password=''
+    command:
+      - jupyter
+      - lab
+      - --ip=0.0.0.0
+      - --port=8888
+      - --no-browser
+      - --allow-root
+      - --ServerApp.token=
+      - --ServerApp.password=
 
 volumes:
   pgdata:
