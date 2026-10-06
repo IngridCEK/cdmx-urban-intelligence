@@ -1,82 +1,62 @@
-﻿import geopandas as gpd
+"""Carga dim_geografia con las AGEB urbanas y alcaldias de Persona A."""
+
+import geopandas as gpd
+from shapely.geometry import MultiPolygon
 from sqlalchemy import text
 
+from src.config import RAW_DIR
 from src.db import get_engine
 
+GEO_DIR = RAW_DIR / "09_ciudaddemexico" / "conjunto_de_datos"
+AGEB_PATH = GEO_DIR / "09a.shp"
+MUN_PATH = GEO_DIR / "09mun.shp"
 
-AGEB_PATH = "/work/data/raw/09_ciudaddemexico/conjunto_de_datos/09a.shp"
-MUN_PATH = "/work/data/raw/09_ciudaddemexico/conjunto_de_datos/09mun.shp"
 
+def run():
+    if not AGEB_PATH.exists() or not MUN_PATH.exists():
+        raise FileNotFoundError(f"No se encontraron las capas geograficas en {GEO_DIR}")
 
-def main():
-    print("Leyendo AGEB urbanas...")
+    print("Leyendo AGEB urbanas y alcaldias...")
     ageb = gpd.read_file(AGEB_PATH)
+    municipios = gpd.read_file(MUN_PATH)[["CVE_ENT", "CVE_MUN", "NOMGEO"]].drop_duplicates()
 
-    print("Leyendo alcaldias...")
-    municipios = gpd.read_file(MUN_PATH)
+    ageb = ageb.merge(municipios, on=["CVE_ENT", "CVE_MUN"], how="left")
+    if ageb["CVEGEO"].duplicated().any():
+        raise ValueError("La capa de AGEB contiene CVEGEO duplicados")
 
-    # Agregar el nombre de la alcaldia usando CVE_ENT + CVE_MUN.
-    municipios = municipios[
-        ["CVE_ENT", "CVE_MUN", "NOMGEO"]
-    ].drop_duplicates()
-
-    ageb = ageb.merge(
-        municipios,
-        on=["CVE_ENT", "CVE_MUN"],
-        how="left"
-    )
-
-    print(f"AGEB leidas: {len(ageb)}")
-
-    # El DW almacena las geometrías en EPSG:32614.
     ageb = ageb.to_crs(epsg=32614)
-
-    # Asegurar MultiPolygon para coincidir con el esquema PostGIS.
     ageb["geometry"] = ageb.geometry.apply(
-        lambda geom: geom
-        if geom.geom_type == "MultiPolygon"
-        else __import__("shapely").geometry.MultiPolygon([geom])
+        lambda geom: geom if geom.geom_type == "MultiPolygon" else MultiPolygon([geom])
     )
-
-    # Calcular area después de reproyectar a metros.
     ageb["area_km2"] = ageb.geometry.area / 1_000_000
 
-    insert_sql = text("""
-        INSERT INTO dw.dim_geografia
-            (CVEGEO, NOMGEO, area_km2, geometry)
-        VALUES
-            (
-                :cvegeo,
-                :nomgeo,
-                :area_km2,
-                ST_Multi(
-                    ST_GeomFromText(:geometry_wkt, 32614)
-                )
-            )
+    rows = [
+        {
+            "cvegeo": str(row.CVEGEO),
+            "nomgeo": row.NOMGEO,
+            "area_km2": float(row.area_km2),
+            "geometry_wkt": row.geometry.wkt,
+        }
+        for row in ageb.itertuples(index=False)
+    ]
+
+    sql = text("""
+        INSERT INTO dw.dim_geografia (CVEGEO, NOMGEO, area_km2, geometry)
+        VALUES (
+            :cvegeo, :nomgeo, :area_km2,
+            ST_Multi(ST_GeomFromText(:geometry_wkt, 32614))
+        )
         ON CONFLICT (CVEGEO) DO UPDATE SET
             NOMGEO = EXCLUDED.NOMGEO,
             area_km2 = EXCLUDED.area_km2,
             geometry = EXCLUDED.geometry
     """)
 
-    print("Insertando dim_geografia...")
+    with get_engine().begin() as conn:
+        conn.execute(sql, rows)
 
-    engine = get_engine()
-
-    with engine.begin() as conn:
-        for _, row in ageb.iterrows():
-            conn.execute(
-                insert_sql,
-                {
-                    "cvegeo": str(row["CVEGEO"]),
-                    "nomgeo": row["NOMGEO"],
-                    "area_km2": float(row["area_km2"]),
-                    "geometry_wkt": row["geometry"].wkt,
-                }
-            )
-
-    print(f"Carga de dim_geografia completada: {len(ageb)} registros.")
+    print(f"Carga de dim_geografia completada: {len(rows)} registros.")
 
 
 if __name__ == "__main__":
-    main()
+    run()
