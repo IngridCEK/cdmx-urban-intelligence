@@ -76,6 +76,7 @@ KPIs de DENUE:
 | Service Density | Establecimientos de sectores de servicios / `area_km2` | `codigo_act` |
 | Dominant Economic Activity | Sector (2 dígitos) con más establecimientos en la AGEB | `codigo_act` |
 | Crime relative to Business Activity | Delitos / establecimientos | Delitos + `id` |
+| Incidents by Type and Time | Conteo de delitos asignados por tipo y por fecha/hora | Delitos (categoria_delito, delito, fecha_hecho, hora) |
 
 Propuesta de agrupación SCIAN (a confirmar con el equipo antes de calcular):
 - **Comercio al por menor (retail):** sector 46 (212,251 establecimientos, 45.9% del total).

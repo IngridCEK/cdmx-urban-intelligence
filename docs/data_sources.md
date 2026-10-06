@@ -8,10 +8,11 @@
 - **Fecha de descarga:** 4 de octubre de 2026
 - **Formato:** Shapefile
 - **Capas usadas:** `09a.shp` (AGEB urbanas) y `09mun.shp` (alcaldías)
-- **Grano:** un polígono por AGEB urbana (<N_AGEB> en total)
-- **CRS original:** <CRS>
+- **Grano:** un polígono por AGEB urbana (2,431 en total)
+- **CRS original:** name: MEXICO_ITRF_2008_LCC
+                         epsg: None
 - **Clave de enlace:** `CVEGEO` (13 caracteres)
-- **Responsable:** <tu nombre>
+- **Responsable:** INGRID CASTILLO
 
 ## 2. Delitos: Carpetas de investigación FGJ CDMX
 - **Portal:** https://datos.cdmx.gob.mx/dataset/carpetas-de-investigacion-fgj-de-la-ciudad-de-mexico
@@ -22,7 +23,7 @@
 - **Formato:** CSV
 - **Grano:** una fila por carpeta de investigación (242,392 registros)
 - **Variables clave:** `delito`, `categoria_delito`, `fecha_inicio`, `fecha_hecho`, `alcaldia_catalogo`, `latitud`, `longitud`
-- **Responsable:** <tu nombre>
+- **Responsable:** INGRID CASTILLO
 
 **Por qué 2023:** es el año completo más reciente disponible (2024 solo cubre hasta julio), evita los años afectados por la pandemia (2020 y 2021) y mantiene un volumen manejable para procesar.
 
