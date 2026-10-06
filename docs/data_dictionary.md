@@ -15,7 +15,7 @@ Documento compartido. Cada integrante describe las tablas de sus fuentes en su p
 | `CVEGEO` | texto (13) | Clave de la AGEB: entidad (2) + municipio (3) + localidad (4) + AGEB (4). Puede contener letras. Llave de integración de todas las capas |
 | `NOMGEO` | texto | Nombre de la alcaldía. Proviene de `09mun.shp` y se asigna a cada AGEB por su clave de municipio |
 | `area_km2` | decimal | Área de la AGEB en km², calculada con la geometría reproyectada a EPSG:32614 (UTM 14N) |
-| `geometry` | polígono | Geometría de la AGEB. Se conserva el CRS original del Marco Geoestadístico |
+| `geometry` | polígono | Geometría MultiPolygon almacenada en el DW en EPSG:32614 |
 
 **Notas:**
 - Solo incluye AGEB urbanas; las zonas rurales no tienen polígono en `09a.shp`.
