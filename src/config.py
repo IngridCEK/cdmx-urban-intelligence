@@ -24,4 +24,4 @@ WORK_CRS = os.getenv("WORK_CRS", "EPSG:32614")  # CRS proyectado para areas/dist
 DB_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 # Tolerancia compartida para puntos cercanos al limite de CDMX (10 km).
-BORDER_TOLERANCE_M = 10_000
+BORDER_TOLERANCE_M = int(os.getenv("BORDER_TOLERANCE_M", "10000"))
