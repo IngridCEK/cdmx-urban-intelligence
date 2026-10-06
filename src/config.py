@@ -14,7 +14,7 @@ DB_USER = os.getenv("DB_USER", "dw_user")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "dw_pass")
 DB_NAME = os.getenv("DB_NAME", "urban_dw")
 DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = os.getenv("DB_PORT", "5432")
+DB_PORT = os.getenv("DB_PORT", "5433")
 
 # Area de estudio (claves INEGI)
 STUDY_ENT = os.getenv("STUDY_ENT", "09")   # 09 = Ciudad de Mexico
