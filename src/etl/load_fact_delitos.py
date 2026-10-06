@@ -22,6 +22,7 @@ def run():
     print("Leyendo delitos...")
     gdf = gpd.read_file(GPKG, layer=LAYER).to_crs("EPSG:32614")
     print(f"Registros leidos: {len(gdf)}")
+    gdf["source_id"] = gdf["_id"].astype(str)
 
     rows = []
     for row in gdf.itertuples(index=False):
@@ -30,7 +31,7 @@ def run():
         geom = row.geometry
         rows.append(
             {
-                "source_id": str(row._id),
+                "source_id": row.source_id,
                 "fecha_inicio": nullable(row.fecha_inicio),
                 "fecha_hecho": fecha_hecho,
                 "hora_hecho": nullable(row.hora_hecho),
