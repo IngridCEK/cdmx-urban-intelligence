@@ -3,7 +3,8 @@
 > Proyecto Unidad 2 - Business Intelligence, Universidad Politecnica de Yucatan.
 
 ## 1. Project overview and analytical objective
-_TODO_
+
+This project builds a reproducible PostgreSQL/PostGIS Data Warehouse for urban intelligence analysis in Mexico City. It integrates urban AGEB polygons, Census 2020 demographic indicators, DENUE 05/2026 establishments, and FGJ CDMX crime incidents from 2023. The urban AGEB is the common spatial unit (CVEGEO). The objective is to calculate demographic, economic, crime, and spatial KPIs without mixing the original grain of the three fact tables.
 
 ## 2. Data sources (original grain and relevant variables)
 | Capa | Fuente | Grano original | Variables clave | Fecha de descarga |
@@ -46,8 +47,8 @@ Los delitos (columnas `latitud` y `longitud`) se convierten a puntos en EPSG:432
 | Total | 242,392 | 100 |
 | Asignados a una AGEB urbana | 227,837 | 94.00 |
 | Sin coordenadas validas | 14,147 | 5.84 |
-| Dentro de la CDMX, fuera de AGEB urbana | 357 | 0.15 |
-| Con coordenadas fuera de la CDMX | 51 | 0.02 |
+| Dentro de la CDMX o dentro de la tolerancia cartografica de 10 km, fuera de AGEB urbana | 408 | 0.17 |
+| Fuera de la CDMX despues de aplicar la tolerancia de 10 km | 0 | 0.00 |
 
 **Validacion:** la alcaldia registrada en el CSV coincide con la obtenida por spatial join en el 99.86% de los casos.
 
@@ -67,7 +68,7 @@ Flujo general: **RAW → CLEAN → SPATIAL JOIN → POSTGRESQL DW**. Los archivo
 | Spatial join | `crime.py` | Asigna alcaldia y `CVEGEO` con `predicate="within"` |
 | Salida | `data/processed/` | GeoPackage de delitos con su AGEB y un reporte de calidad en JSON |
 
-**Resultados (delitos 2023):** 242,392 registros crudos; 0 duplicados; 227,837 asignados a una AGEB urbana (94.00%); coincidencia de alcaldia con el poligono: 99.86%.
+**Resultados base (delitos 2023):** 242,392 registros crudos y 227,837 asignados a una AGEB urbana. Con la regla compartida de borde de 10 km, los 51 puntos que antes quedaban apenas fuera del limite pasan a dentro_cdmx_sin_ageb; el reporte de calidad debe regenerarse al ejecutar el ETL.
 
 ### 4.2 Censo y DENUE
 **Ejecucion:**
@@ -110,7 +111,7 @@ Ambos ETL leen `data/raw/` sin modificarlo y escriben en `data/processed/` un ar
 
 - **Clave espacial vs clave del DENUE:** de los 461,221 asignados, 460,430 (99.83%) tienen el mismo `CVEGEO` que `CVEGEO_DENUE` y 791 no (786 con clave existente en `09a.shp` pero el punto cae en otra AGEB; 5 con clave que no existe en la capa). La integracion usa la AGEB espacial (`CVEGEO`), igual que en delitos.
 - **Cobertura:** 2,420 de las 2,431 AGEB tienen al menos un establecimiento; 11 no tienen ninguno.
-- **Regla `fuera_cdmx`:** un punto es de la CDMX si cae en un poligono de alcaldia o, si queda fuera, a no mas de 100 km del limite con `cve_ent` = `09`. Se propone la misma regla para delitos (hoy `crime.py` usa solo el poligono) porque los puntos fuera del poligono son de borde: los 51 delitos estan a 1.2 m o menos y 11 de los 14 del DENUE a 2.2 km o menos; solo 3 (a 315, 1,525 y 2,274 km) son coordenadas erroneas. Evidencia en `notebooks/04_diagnostico_fuera_cdmx.ipynb`.
+- **Regla `fuera_cdmx`:** delitos y DENUE comparten `BORDER_TOLERANCE_M=10000` (10 km). Un punto que cae fuera del poligono administrativo pero a no mas de 10 km del limite se conserva como `dentro_cdmx_sin_ageb`; distancias mayores se clasifican como `fuera_cdmx`.
 
 #### Clasificacion SCIAN (version 2018)
 La version se confirmo con el diccionario de datos que viene con el DENUE 05_2026. El sector son los dos primeros digitos de `codigo_act`; los sectores agrupados se tratan como uno (`31-33` y `48-49`).
@@ -141,35 +142,30 @@ El catalogo esta en `data/catalogos/scian_sectores.csv` y la regla con su justif
 La prueba de claves Censo vs `09a.shp` (2,431 coincidentes y 2 AGEB del Censo sin poligono) esta en la seccion 3.
 
 ## 5. PostgreSQL/PostGIS and Data Warehouse model
-The Data Warehouse uses a dimensional model based on the urban AGEB as the main geographic unit of analysis. CVEGEO is the main integration key between geographic, crime, demographic, and economic information.
+The warehouse uses urban AGEB (CVEGEO) as its shared geographic dimension. It contains six dimensions: dim_geografia, dim_fecha, dim_hora, dim_delito, dim_actividad_economica, and dim_tamano. The three facts preserve their own grain: one row per crime incident, one row per Census AGEB, and one row per DENUE establishment.
 
-The proposed dimensions are:
-
-dim_geografia: one row per urban AGEB, including CVEGEO, alcaldía, area, and geometry.
-dim_fecha: one row per calendar date.
-dim_delito: crime classification information.
-dim_actividad_economica: SCIAN and economic activity classifications.
-
-The proposed fact tables are:
-
-fact_delitos: one row per crime incident/case.
-fact_poblacion: population measures by urban AGEB and demographic breakdown.
-fact_establecimientos: one row per economic establishment.
-
-The detailed grain, attributes, relationships, and KPI support are documented in docs/warehouse_design.md.
+The complete grain, relationships, null rules, and lineage are documented in `docs/warehouse_design.md`. SQL views are in `sql/03_views.sql`; `dw.vw_kpi_ageb` aggregates each fact independently before combining them, preventing row multiplication.
 
 ## 6. KPI definitions and formulas
-The Data Warehouse is designed to support the following KPIs:
 
-KPI	Formula
-Total Crime Incidents	Count of crime incidents by CVEGEO
-Crime Rate	Crime incidents / total population × 1,000
-Population Density	Total population / area_km2
-Business Density	Establishments / area_km2
-Retail Density	Retail establishments / area_km2
-Service Density	Service establishments / area_km2
+| KPI | Formula / rule |
+|---|---|
+| Total Crime Incidents | Crime incidents assigned to each CVEGEO |
+| Crime Rate | incidents / population x 1,000 |
+| Population Density | population / area_km2 |
+| Business Density | establishments / area_km2 |
+| Retail Density | SCIAN retail establishments / area_km2 |
+| Service Density | SCIAN service establishments / area_km2 |
+| Total Population | POBTOT by AGEB |
+| Economically Active Population Rate | PEA / P_12YMAS x 100 |
+| Population by Age Group | POB0_14, POB15_64, POB65_MAS |
+| Total Businesses | DENUE establishments by AGEB |
+| Businesses per 1,000 Residents | establishments / population x 1,000 |
+| Dominant Economic Activity | SCIAN sector with most establishments; lowest sector code breaks ties |
+| Incidents by Type and Time | incidents grouped by crime type and date/hour |
+| Crime Relative to Business Activity | incidents / establishments |
 
-The required source variables and KPI dependencies are documented in docs/kpi_variables.md
+Undefined rates return NULL when their denominator is zero or missing. Counts may be zero when absence of matching facts means a true count of zero. Full variable dependencies are in `docs/kpi_variables.md`.
 ## 7. Assumptions, data-quality issues and limitations
 
 ### 7.1 Censo y DENUE
@@ -183,7 +179,9 @@ The required source variables and KPI dependencies are documented in docs/kpi_va
 - **Discrepancia de AGEB:** en 791 establecimientos la AGEB que trae el DENUE difiere de la espacial; se usa la espacial (`CVEGEO`) como clave de integracion.
 - **Clasificacion SCIAN en tres grupos:** `otro` mezcla manufactura, comercio al por mayor, construccion, gobierno y actividades primarias.
 
-_Pendiente: supuestos de delitos y del modelo dimensional (Personas A y C)._
+- **Delitos sin coordenadas:** se conservan con CVEGEO nulo y `sin_coordenadas_validas`; no entran en KPIs por AGEB.
+- **Tolerancia de borde:** delitos y DENUE usan la misma tolerancia configurable de 10 km.
+- **Tasas indefinidas:** divisiones con poblacion, area o establecimientos iguales a cero/nulos devuelven NULL, no cero.
 
 ---
 
@@ -200,11 +198,30 @@ docker compose exec app python -m src.check_db   # debe imprimir version de Post
 ```
 
 - Jupyter Lab: http://localhost:8888
-- Conectar con DBeaver/pgAdmin: host `localhost`, puerto `5432`, usuario/BD segun `.env`.
+- Conectar con DBeaver/pgAdmin: host `localhost`, puerto `5433` por defecto (o el valor de `DB_PORT` en `.env`), usuario/BD segun `.env`.
 - Ejecutar un script SQL:
   `docker compose exec -T db psql -U dw_user -d urban_dw < sql/01_schema.sql`
 - Apagar: `docker compose down` (los datos persisten). Borrar la BD: `docker compose down -v`.
 
+## Reproduccion paso a paso
+
+Despues de descargar las fuentes indicadas en `docs/data_sources.md`, ejecutar en este orden:
+
+```bash
+cp .env.example .env
+docker compose up -d --build
+docker compose exec app python -m src.etl.census
+docker compose exec app python -m src.etl.denue
+docker compose exec app python -m src.etl.crime
+docker compose exec app python -m src.etl.load_dim_geografia
+docker compose exec app python -m src.etl.load_dimensions_delitos
+docker compose exec app python -m src.etl.load_dimensions
+docker compose exec app python -m src.etl.load_fact_poblacion
+docker compose exec app python -m src.etl.load_fact_establecimientos
+docker compose exec app python -m src.etl.load_fact_delitos
+```
+
+`sql/01_schema.sql` es destructivo porque reconstruye el esquema DW; solo debe ejecutarse cuando se quiera reiniciar completamente la base. Despues de las cargas, ejecutar `sql/03_views.sql` desde DBeaver/psql para crear las vistas analiticas y `dw.vw_kpi_ageb`.
 ## Descarga de datos
 Los datos crudos NO se suben a Git. Descargalos segun `docs/data_sources.md`
 y colocalos en `data/raw/` sin modificarlos.
