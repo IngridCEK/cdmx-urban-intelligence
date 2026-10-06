@@ -1,4 +1,4 @@
-import geopandas as gpd
+﻿import geopandas as gpd
 import pandas as pd
 from sqlalchemy import create_engine, text
 from src.config import DB_URL
@@ -11,10 +11,10 @@ print("Leyendo DENUE...")
 
 gdf = gpd.read_file(GPKG)
 
-print(f"Registros leídos: {len(gdf)}")
+print(f"Registros leÃ­dos: {len(gdf)}")
 
 # ---------------------------------------------------------
-# Transformar geometrías al CRS de trabajo
+# Transformar geometrÃ­as al CRS de trabajo
 # ---------------------------------------------------------
 
 gdf = gdf.to_crs("EPSG:32614")
@@ -30,7 +30,7 @@ gdf["establishment_id"] = gdf["id"].astype(str)
 print("Columnas preparadas.")
 
 # ---------------------------------------------------------
-# SQL de inserción
+# SQL de inserciÃ³n
 # ---------------------------------------------------------
 
 insert_sql = text("""
@@ -45,6 +45,7 @@ insert_sql = text("""
         latitud,
         longitud,
         geometry,
+        estatus_asignacion,
         fuente,
         fecha_corte
     )
@@ -67,6 +68,7 @@ insert_sql = text("""
         :latitud,
         :longitud,
         ST_GeomFromText(:geometry_wkt, 32614),
+        :estatus_asignacion,
         'DENUE 2023',
         '2023-11-01'
     ON CONFLICT (establishment_id) DO NOTHING
@@ -82,7 +84,7 @@ with engine.begin() as conn:
 
     for i, row in gdf.iterrows():
 
-        # Geometría
+        # GeometrÃ­a
         geometry_wkt = None
 
         if row.geometry is not None and not row.geometry.is_empty:
@@ -95,14 +97,14 @@ with engine.begin() as conn:
             else str(row["cvegeo_ageb"])
         )
 
-        # Código de actividad
+        # CÃ³digo de actividad
         codigo_act = (
             None
             if pd.isna(row["codigo_act"])
             else str(row["codigo_act"]).strip()
         )
 
-        # Tamaño
+        # TamaÃ±o
         per_ocu = (
             None
             if pd.isna(row["per_ocu"])
@@ -129,6 +131,13 @@ with engine.begin() as conn:
             else row["longitud"]
         )
 
+        # Estado de asignaciÃ³n
+        estatus_asignacion = (
+            "sin_coordenadas_validas"
+            if pd.isna(row["estatus_asignacion"])
+            else str(row["estatus_asignacion"]).strip()
+        )
+
         params = {
             "establishment_id": row["establishment_id"],
             "cvegeo": cvegeo,
@@ -137,7 +146,8 @@ with engine.begin() as conn:
             "fecha_alta": fecha_alta,
             "latitud": latitud,
             "longitud": longitud,
-            "geometry_wkt": geometry_wkt
+            "geometry_wkt": geometry_wkt,
+            "estatus_asignacion": estatus_asignacion
         }
 
         conn.execute(insert_sql, params)

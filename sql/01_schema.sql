@@ -3,7 +3,11 @@
 -- Esquema del Data Warehouse: CDMX Urban Intelligence
 -- ============================================================
 
-CREATE SCHEMA IF NOT EXISTS dw;
+-- Este script es re-ejecutable.
+-- Cada ejecución reconstruye completamente el esquema DW.
+DROP SCHEMA IF EXISTS dw CASCADE;
+
+CREATE SCHEMA dw;
 
 
 -- ============================================================
@@ -11,14 +15,14 @@ CREATE SCHEMA IF NOT EXISTS dw;
 -- GRANO: una fila por AGEB urbana de la Ciudad de Mexico.
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS dw.dim_geografia (
+CREATE TABLE dw.dim_geografia (
     CVEGEO      VARCHAR(13) PRIMARY KEY,
     NOMGEO      VARCHAR(150),
     area_km2    NUMERIC(12,6),
     geometry    geometry(MultiPolygon, 32614)
 );
 
-CREATE INDEX IF NOT EXISTS idx_dim_geografia_geometry
+CREATE INDEX idx_dim_geografia_geometry
     ON dw.dim_geografia
     USING GIST (geometry);
 
@@ -28,23 +32,21 @@ CREATE INDEX IF NOT EXISTS idx_dim_geografia_geometry
 -- GRANO: una fila por fecha calendario.
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS dw.dim_fecha (
+CREATE TABLE dw.dim_fecha (
     fecha_key       INTEGER PRIMARY KEY,
     fecha           DATE NOT NULL UNIQUE,
     dia             INTEGER NOT NULL,
     mes             INTEGER NOT NULL,
     nombre_mes      VARCHAR(20) NOT NULL,
     trimestre       INTEGER NOT NULL,
-    anio            INTEGER NOT NULL
+    anio            INTEGER NOT NULL,
+
+    CONSTRAINT chk_dim_fecha_mes
+        CHECK (mes BETWEEN 1 AND 12),
+
+    CONSTRAINT chk_dim_fecha_trimestre
+        CHECK (trimestre BETWEEN 1 AND 4)
 );
-
-ALTER TABLE dw.dim_fecha
-    ADD CONSTRAINT chk_dim_fecha_mes
-    CHECK (mes BETWEEN 1 AND 12);
-
-ALTER TABLE dw.dim_fecha
-    ADD CONSTRAINT chk_dim_fecha_trimestre
-    CHECK (trimestre BETWEEN 1 AND 4);
 
 
 -- ============================================================
@@ -52,16 +54,15 @@ ALTER TABLE dw.dim_fecha
 -- GRANO: una fila por hora del dia (0-23).
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS dw.dim_hora (
+CREATE TABLE dw.dim_hora (
     hora_key        INTEGER PRIMARY KEY,
     hora            INTEGER NOT NULL UNIQUE,
     franja_horaria  VARCHAR(30) NOT NULL,
-    parte_dia       VARCHAR(20) NOT NULL
-);
+    parte_dia       VARCHAR(20) NOT NULL,
 
-ALTER TABLE dw.dim_hora
-    ADD CONSTRAINT chk_dim_hora_hora
-    CHECK (hora BETWEEN 0 AND 23);
+    CONSTRAINT chk_dim_hora_hora
+        CHECK (hora BETWEEN 0 AND 23)
+);
 
 
 -- ============================================================
@@ -69,7 +70,7 @@ ALTER TABLE dw.dim_hora
 -- GRANO: una fila por combinacion de categoria y tipo de delito.
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS dw.dim_delito (
+CREATE TABLE dw.dim_delito (
     delito_key          INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     categoria_delito    VARCHAR(200),
     delito              VARCHAR(300),
@@ -84,7 +85,7 @@ CREATE TABLE IF NOT EXISTS dw.dim_delito (
 -- GRANO: una fila por clasificacion economica SCIAN.
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS dw.dim_actividad_economica (
+CREATE TABLE dw.dim_actividad_economica (
     actividad_key       INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     codigo_act          VARCHAR(10) NOT NULL UNIQUE,
     nombre_act          VARCHAR(300),
@@ -100,7 +101,7 @@ CREATE TABLE IF NOT EXISTS dw.dim_actividad_economica (
 -- GRANO: una fila por categoria de tamano de establecimiento.
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS dw.dim_tamano (
+CREATE TABLE dw.dim_tamano (
     tamano_key          INTEGER PRIMARY KEY,
     categoria_tamano    VARCHAR(50) NOT NULL UNIQUE,
     descripcion         VARCHAR(200)
@@ -113,7 +114,7 @@ CREATE TABLE IF NOT EXISTS dw.dim_tamano (
 -- Se conservan TODOS los registros del origen FGJ.
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS dw.fact_delitos (
+CREATE TABLE dw.fact_delitos (
     delito_fact_key         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 
     source_id               VARCHAR(100) NOT NULL UNIQUE,
@@ -143,6 +144,19 @@ CREATE TABLE IF NOT EXISTS dw.fact_delitos (
 
     incident_count          INTEGER NOT NULL DEFAULT 1,
 
+    CONSTRAINT chk_fact_delitos_hora
+        CHECK (hora IS NULL OR hora BETWEEN 0 AND 23),
+
+    CONSTRAINT chk_fact_delitos_estatus
+        CHECK (
+            estatus_asignacion IN (
+                'asignado',
+                'dentro_cdmx_sin_ageb',
+                'fuera_cdmx',
+                'sin_coordenadas_validas'
+            )
+        ),
+
     CONSTRAINT fk_fact_delitos_geografia
         FOREIGN KEY (CVEGEO)
         REFERENCES dw.dim_geografia(CVEGEO),
@@ -160,36 +174,21 @@ CREATE TABLE IF NOT EXISTS dw.fact_delitos (
         REFERENCES dw.dim_delito(delito_key)
 );
 
-CREATE INDEX IF NOT EXISTS idx_fact_delitos_cvegeo
+CREATE INDEX idx_fact_delitos_cvegeo
     ON dw.fact_delitos (CVEGEO);
 
-CREATE INDEX IF NOT EXISTS idx_fact_delitos_fecha
+CREATE INDEX idx_fact_delitos_fecha
     ON dw.fact_delitos (fecha_key);
 
-CREATE INDEX IF NOT EXISTS idx_fact_delitos_hora
+CREATE INDEX idx_fact_delitos_hora
     ON dw.fact_delitos (hora_key);
 
-CREATE INDEX IF NOT EXISTS idx_fact_delitos_delito
+CREATE INDEX idx_fact_delitos_delito
     ON dw.fact_delitos (delito_key);
 
-CREATE INDEX IF NOT EXISTS idx_fact_delitos_geometry
+CREATE INDEX idx_fact_delitos_geometry
     ON dw.fact_delitos
     USING GIST (geometry);
-
-ALTER TABLE dw.fact_delitos
-    ADD CONSTRAINT chk_fact_delitos_hora
-    CHECK (hora IS NULL OR hora BETWEEN 0 AND 23);
-
-ALTER TABLE dw.fact_delitos
-    ADD CONSTRAINT chk_fact_delitos_estatus
-    CHECK (
-        estatus_asignacion IN (
-            'asignado',
-            'dentro_cdmx_sin_ageb',
-            'fuera_cdmx',
-            'sin_coordenadas_validas'
-        )
-    );
 
 
 -- ============================================================
@@ -198,7 +197,7 @@ ALTER TABLE dw.fact_delitos
 -- Fuente: INEGI Censo 2020.
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS dw.fact_poblacion (
+CREATE TABLE dw.fact_poblacion (
     CVEGEO          VARCHAR(13) PRIMARY KEY,
 
     pob_total       BIGINT,
@@ -208,6 +207,10 @@ CREATE TABLE IF NOT EXISTS dw.fact_poblacion (
 
     pob_12_mas      BIGINT,
     pea             BIGINT,
+
+    vivtot          BIGINT,
+    tvivhab         BIGINT,
+    graproes        NUMERIC(6,2),
 
     fuente          VARCHAR(100),
     fecha_corte     DATE,
@@ -220,12 +223,11 @@ CREATE TABLE IF NOT EXISTS dw.fact_poblacion (
 
 -- ============================================================
 -- FACT: ESTABLECIMIENTOS
--- GRANO: una fila por establecimiento economico registrado
--- dentro de una AGEB urbana.
+-- GRANO: una fila por establecimiento economico registrado.
 -- Fuente: INEGI DENUE.
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS dw.fact_establecimientos (
+CREATE TABLE dw.fact_establecimientos (
     establecimiento_key     BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 
     establishment_id        VARCHAR(100) NOT NULL UNIQUE,
@@ -245,9 +247,19 @@ CREATE TABLE IF NOT EXISTS dw.fact_establecimientos (
 
     geometry                geometry(Point, 32614),
 
+    estatus_asignacion      VARCHAR(40) NOT NULL,
+
     fuente                  VARCHAR(100),
     fecha_corte             DATE,
 
+   CONSTRAINT chk_fact_estab_estatus
+    CHECK (
+        estatus_asignacion IN (
+            'asignado',
+            'coordenada_sin_ageb',
+            'sin_coordenadas_validas'
+        )
+    ),
     CONSTRAINT fk_fact_estab_geografia
         FOREIGN KEY (CVEGEO)
         REFERENCES dw.dim_geografia(CVEGEO),
@@ -261,15 +273,15 @@ CREATE TABLE IF NOT EXISTS dw.fact_establecimientos (
         REFERENCES dw.dim_tamano(tamano_key)
 );
 
-CREATE INDEX IF NOT EXISTS idx_fact_estab_cvegeo
+CREATE INDEX idx_fact_estab_cvegeo
     ON dw.fact_establecimientos (CVEGEO);
 
-CREATE INDEX IF NOT EXISTS idx_fact_estab_actividad
+CREATE INDEX idx_fact_estab_actividad
     ON dw.fact_establecimientos (actividad_key);
 
-CREATE INDEX IF NOT EXISTS idx_fact_estab_tamano
+CREATE INDEX idx_fact_estab_tamano
     ON dw.fact_establecimientos (tamano_key);
 
-CREATE INDEX IF NOT EXISTS idx_fact_estab_geometry
+CREATE INDEX idx_fact_estab_geometry
     ON dw.fact_establecimientos
     USING GIST (geometry);
