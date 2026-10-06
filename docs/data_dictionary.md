@@ -61,12 +61,58 @@ Los KPIs por AGEB usan solo los registros `asignado`.
 ---
 
 ## 3. Censo (`fact_poblacion`) — Persona B
-_Pendiente. Agregar aquí la descripción de columnas del Censo por AGEB._
+
+**Fuente:** INEGI Censo 2020, Principales resultados por AGEB y manzana urbana, entidad 09.
+**Grano:** una fila por AGEB de total (`AGEB` distinto de `0000` y `MZA` = `000`), 2,433 filas.
+**ETL:** `src/etl/census.py`. Lee con `dtype=str` y `encoding="utf-8-sig"`; los `*` se convierten a NULL, nunca a cero.
+
+| Columna | Tipo | Descripción |
+|---|---|---|
+| `CVEGEO` | texto (13) | Clave construida como `ENTIDAD` + `MUN` + `LOC` + `AGEB`; llave de integración con geografía y DENUE |
+| `ENTIDAD`, `MUN`, `LOC`, `AGEB` | texto | Componentes de la clave geográfica original del Censo |
+| `NOM_MUN` | texto | Nombre de la alcaldía/municipio según el Censo |
+| `POBTOT` | entero nullable | Población total del AGEB |
+| `POB0_14` | entero nullable | Población de 0 a 14 años |
+| `POB15_64` | entero nullable | Población de 15 a 64 años |
+| `POB65_MAS` | entero nullable | Población de 65 años y más |
+| `P_18A24` | entero nullable | Población de 18 a 24 años |
+| `P_12YMAS` | entero nullable | Población de 12 años y más; denominador para la tasa de PEA |
+| `PEA` | entero nullable | Población económicamente activa |
+| `POCUPADA` | entero nullable | Población ocupada |
+| `PDESOCUP` | entero nullable | Población desocupada |
+| `PE_INAC` | entero nullable | Población no económicamente activa |
+| `VIVTOT` | entero nullable | Viviendas totales |
+| `TVIVHAB` | entero nullable | Viviendas habitadas |
+| `GRAPROES` | decimal nullable | Grado promedio de escolaridad |
+
+**Calidad:** la salida contiene 2,433 filas; 17 AGEB tienen `POBTOT = 0`. Los valores suprimidos con `*` quedan como NULL y se reportan por columna en `censo_2020_ageb_reporte_calidad.json`.
 
 ---
 
 ## 4. DENUE (`fact_establecimientos`, `dim_actividad_economica`, `dim_tamano`) — Persona B
-_Pendiente. Agregar aquí la descripción de columnas del DENUE y la clasificación SCIAN._
+
+**Fuente:** INEGI DENUE 05_2026, Ciudad de México.
+**Grano:** una fila por establecimiento, 462,732 registros.
+**ETL:** `src/etl/denue.py`. Lee con `encoding="latin-1"` y `dtype=str`; convierte latitud/longitud a puntos y asigna AGEB mediante spatial join contra `09a.shp` usando `load_agebs()`.
+
+| Columna | Origen | Descripción |
+|---|---|---|
+| `id` | DENUE | Identificador único del establecimiento |
+| `codigo_act` | DENUE | Código SCIAN de 6 dígitos; sus primeros dos dígitos determinan el sector |
+| `nombre_act` | DENUE | Nombre de la actividad económica |
+| `per_ocu` | DENUE | Estrato de personal ocupado; se conserva como categoría y se ordena 1–7 en `dim_tamano` |
+| `tipoUniEco` | DENUE | Tipo de unidad económica: `Fijo` o `Semifijo`; ambos se incluyen |
+| `cve_ent`, `cve_mun`, `cve_loc`, `ageb`, `manzana` | DENUE | Claves geográficas originales del establecimiento |
+| `CVEGEO_DENUE` | Derivada | Clave reconstruida con `cve_ent` + `cve_mun` + `cve_loc` + `ageb` |
+| `latitud`, `longitud` | DENUE | Coordenadas en grados decimales usadas para construir los puntos |
+| `CVEGEO` | Derivada | AGEB asignada por spatial join contra `09a.shp`; NULL cuando no se asigna |
+| `alcaldia_geo` | Derivada | Alcaldía obtenida por spatial join contra `09mun.shp` |
+| `estatus_asignacion` | Derivada | `asignado`, `dentro_cdmx_sin_ageb`, `fuera_cdmx` o `sin_coordenadas_validas` |
+| `geometry` | Derivada | Punto reproyectado al CRS de los polígonos; NULL si no hay coordenadas válidas |
+
+**Reconciliación:** se conservan los 462,732 registros. El reporte `denue_2026_reporte_calidad.json` verifica que la suma de los cuatro estatus sea exactamente 462,732 y compara `CVEGEO` espacial contra `CVEGEO_DENUE`.
+
+**Clasificación SCIAN:** sector 46 = comercio al por menor; sectores 51–56, 61, 62, 71, 72 y 81 = servicios; el resto = otro. El catálogo reproducible está en `data/catalogos/scian_sectores.csv` y las decisiones analíticas están en `docs/scian_clasificacion.md`.
 
 ---
 
