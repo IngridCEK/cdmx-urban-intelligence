@@ -52,11 +52,11 @@ Se conservan además las demás columnas originales del CSV (por ejemplo `fiscal
 | Valor | Significado | Registros |
 |---|---|---|
 | `asignado` | Cae dentro de una AGEB urbana | 227,837 |
-| `dentro_cdmx_sin_ageb` | Dentro de la CDMX, fuera de toda AGEB urbana | 357 |
-| `fuera_cdmx` | Tiene coordenadas, pero fuera de la CDMX | 51 |
+| `dentro_cdmx_sin_ageb` | Dentro de la CDMX o a <=10 km del limite, fuera de toda AGEB urbana | 408 |
+| `fuera_cdmx` | Tiene coordenadas y queda a mas de 10 km del limite de la CDMX | 0 |
 | `sin_coordenadas_validas` | Sin latitud/longitud útiles (nulas, cero o fuera de rango) | 14,147 |
 
-Los KPIs por AGEB usan solo los registros `asignado`.
+Los KPIs por AGEB usan solo los registros `asignado`. La tolerancia cartografica compartida es de 10 km (`BORDER_TOLERANCE_M=10000`) y se aplica tanto a delitos como a DENUE.
 
 ---
 
