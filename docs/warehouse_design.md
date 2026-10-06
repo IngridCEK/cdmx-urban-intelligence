@@ -379,10 +379,10 @@ The ETL must preserve the reconciliation of the 242,392 source crime records:
 
 * 227,837 assigned to an urban AGEB
 * 14,147 without valid coordinates
-* 357 inside CDMX but outside an urban AGEB
-* 51 outside CDMX
+* 408 inside CDMX or within the 10 km border tolerance but outside an urban AGEB
+* 0 outside CDMX after applying the shared 10 km border tolerance
 
-The exact validation totals must be preserved in the ETL documentation.
+The shared border tolerance is 10 km (`BORDER_TOLERANCE_M=10000`) for both crime and DENUE. The exact validation totals must be regenerated and preserved in the ETL quality reports.
 
 ---
 
