@@ -25,20 +25,20 @@ from src.geo.polygons import load_agebs, load_municipios
 
 DEFAULT_CSV = "carpetas_fgj_2023.csv"
 REQUIRED_COLUMNS = [
-    "_id", "fecha_inicio", "fecha_hecho", "hora_hecho", "delito",
+    "fecha_inicio", "fecha_hecho", "hora_hecho", "delito",
     "categoria_delito", "alcaldia_catalogo", "latitud", "longitud",
 ]
+
 STATUS_ORDER = [
     "asignado", "dentro_cdmx_sin_ageb", "fuera_cdmx", "sin_coordenadas_validas",
 ]
-
-
 def extract(csv_name: str) -> pd.DataFrame:
     """Lee el CSV crudo sin modificarlo en disco y valida las columnas."""
     path = RAW_DIR / csv_name
     if not path.exists():
         raise FileNotFoundError(f"No existe {path}")
     df = pd.read_csv(path, low_memory=False)
+    df["_id"] = range(1, len(df) + 1)
     missing = [c for c in REQUIRED_COLUMNS if c not in df.columns]
     if missing:
         raise ValueError(f"Faltan columnas en el CSV: {missing}")
