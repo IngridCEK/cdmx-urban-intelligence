@@ -1,135 +1,187 @@
 # CDMX Urban Intelligence - Geospatial Data Warehouse
 
-> Proyecto Unidad 2 - Business Intelligence, Universidad Politecnica de Yucatan.
+> Proyecto Unidad 2 - Business Intelligence, Universidad Politécnica de Yucatán.
 
 ## 1. Project overview and analytical objective
-_TODO_
+
+This project develops a geospatial Data Warehouse for analyzing crime, population, and economic activity in Mexico City (CDMX). The main geographic unit of analysis is the urban AGEB (Área Geoestadística Básica), which allows the integration of demographic, crime, economic, and geographic information at a detailed spatial level.
+
+The analytical objective is to identify and compare patterns of crime, population, and economic activity across urban AGEBs. The Data Warehouse supports indicators such as crime rates, population density, business density, crime by type and time, and the relationship between crime and economic activity.
+
+The architecture uses PostgreSQL with PostGIS and a dimensional model composed of geographic, temporal, crime, economic activity, and business-size dimensions, together with fact tables for crime incidents, population, and establishments.
 
 ## 2. Data sources (original grain and relevant variables)
-| Capa | Fuente | Grano original | Variables clave | Fecha de descarga |
+
+| Layer | Source | Original grain | Key variables | Download date |
 |---|---|---|---|---|
-| Demografica | INEGI Censo 2020, Principales resultados por AGEB y manzana urbana (entidad 09) | Una fila por entidad, municipio, localidad, AGEB y manzana (68,941 filas); se usan las 2,433 filas de total por AGEB (`MZA`=000) | `POBTOT`, `POB0_14`, `POB15_64`, `POB65_MAS`, `P_12YMAS`, `PEA`; clave `ENTIDAD`+`MUN`+`LOC`+`AGEB` -> `CVEGEO` | 4 oct 2026 |
-| Economica | INEGI DENUE 05_2026 (CDMX) | Una fila por establecimiento (462,732) con lat/lon y claves de AGEB | `id`, `codigo_act` (SCIAN), `nombre_act`, `per_ocu`, `latitud`, `longitud`, `ageb` | 4 oct 2026 |
-| Geografica | INEGI Marco Geoestadistico, Censo 2020 (entidad 09) | Un poligono por AGEB urbana | `CVEGEO`, geometria (`09a.shp`), alcaldias (`09mun.shp`) | 4 oct 2026 |
-| Seguridad | FGJ CDMX - Carpetas de investigacion 2023 | Una fila por carpeta de investigacion (242,392) | `categoria_delito`, `fecha_hecho`, `hora_hecho`, `alcaldia_catalogo`, `latitud`, `longitud` | 4 oct 2026 |Carpeta/incidente con lat/lon | categoria_delito, fecha_hecho, hora_hecho, latitud, longitud | |
+| Demographic | INEGI Censo 2020, principal results by AGEB and urban block (entity 09) | One row per entity, municipality, locality, AGEB, and block (68,941 rows); 2,433 AGEB total rows are used | `POBTOT`, `POB0_14`, `POB15_64`, `POB65_MAS`, `P_12YMAS`, `PEA`; `ENTIDAD` + `MUN` + `LOC` + `AGEB` -> `CVEGEO` | 4 Oct 2026 |
+| Economic | INEGI DENUE 05_2026 (CDMX) | One row per establishment (475,331) with coordinates and economic activity information | `id`, `codigo_act`, `nombre_act`, `per_ocu`, `latitud`, `longitud`, `ageb` | 4 Oct 2026 |
+| Geographic | INEGI Marco Geoestadístico, Censo 2020 (entity 09) | One polygon per urban AGEB | `CVEGEO`, geometry, municipality information | 4 Oct 2026 |
+| Security | FGJ CDMX - Carpetas de investigación 2023 | One row per investigation record (242,392) | `categoria_delito`, `fecha_hecho`, `hora_hecho`, `alcaldia_catalogo`, `latitud`, `longitud` | 4 Oct 2026 |
 
 ## 3. Geographic strategy
-Alternativas consideradas, unidad elegida y integracion lat/lon -> poligono. 
-**Unidad de analisis elegida: AGEB urbana** (INEGI, Marco Geoestadistico del Censo 2020, entidad 09). El analisis cubre <2431> AGEB urbanas.
 
-### Alternativas consideradas
-| Unidad | Motivo de descarte |
+### Selected unit of analysis
+
+The selected unit of analysis is the **urban AGEB**, based on the INEGI Marco Geoestadístico for Census 2020, entity 09. The analysis covers **2,431 urban AGEBs** that are compatible with the geographic dimension.
+
+AGEB was selected because it provides an official polygon and is also available as a geographic unit in Census data. This allows crime and economic establishments to be integrated using spatial joins while preserving a detailed geographic level.
+
+### Alternatives considered
+
+| Unit | Reason for rejection |
 |---|---|
-| Alcaldia | Solo 16 unidades; demasiado gruesa para medir autocorrelacion espacial |
-| Colonia | No existe poligono oficial de INEGI ni datos censales a ese nivel |
-| Codigo postal | No es cartografia oficial de INEGI y el Censo no se publica por CP, habria que interpolar |
-| Manzana | El Censo suprime valores menores a 3 por privacidad y los delitos quedarian dispersos, con muchos ceros |
-| **AGEB urbana** | Poligono y Censo oficiales; los puntos de delitos y DENUE se integran por spatial join |
+| Municipality | Only 16 units in CDMX, which is too coarse for detailed spatial analysis |
+| Neighborhood | No single official INEGI polygon and census data are not consistently available at this level |
+| Postal code | Not the official INEGI geographic unit and census data are not published by postal code |
+| Urban block | Census values may be suppressed for confidentiality and crime records would be highly dispersed |
+| **Urban AGEB** | Official polygon and census unit; crime and DENUE points can be integrated through spatial joins |
 
-### Integracion de lat/lon con poligonos
-Los delitos (columnas `latitud` y `longitud`) se convierten a puntos en EPSG:4326, se reproyectan al CRS de los poligonos (PROJCS["MEXICO_ITRF_2008_LCC",GEOGCS["ITRF2008",DATUM["International_Terrestrial_Reference_Frame_2008",SPHEROID["GRS 1980",6378137,298.257222101,AUTHORITY["EPSG","7019"]],AUTHORITY["EPSG","1061"]],PRIMEM["Greenwich",0],UNIT["Degree",0.0174532925199433]],PROJECTION["Lambert_Conformal_Conic_2SP"],PARAMETER["latitude_of_origin",12],PARAMETER["central_meridian",-102],PARAMETER["standard_parallel_1",17.5],PARAMETER["standard_parallel_2",29.5],PARAMETER["false_easting",2500000],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH]]) y se asignan a una AGEB con un spatial join (`predicate="within"`). La clave de enlace es `CVEGEO` (13 caracteres).
+### Integration of latitude/longitude with polygons
 
-### Resultados de la integracion (delitos 2023)
-| Categoria | Registros | % |
-|---|---|---|
-| Total | 242,392 | 100 |
-| Asignados a una AGEB urbana | 227,837 | 94.00 |
-| Sin coordenadas validas | 14,147 | 5.84 |
-| Dentro de la CDMX, fuera de AGEB urbana | 357 | 0.15 |
-| Con coordenadas fuera de la CDMX | 51 | 0.02 |
+Crime and establishment coordinates are initially handled in EPSG:4326 and then transformed to the working coordinate reference system used by the geographic polygons. Points are assigned to an urban AGEB using a spatial join with the `within` predicate.
 
-**Validacion:** la alcaldia registrada en el CSV coincide con la obtenida por spatial join en el 99.86% de los casos.
+The main integration key is `CVEGEO`, a 13-character geographic code.
+
+### Crime spatial integration results
+
+| Category | Records | Percentage |
+|---|---:|---:|
+| Total | 242,392 | 100.00% |
+| Assigned to an urban AGEB | 227,837 | 94.00% |
+| Without valid coordinates | 14,147 | 5.84% |
+| Inside CDMX but outside an urban AGEB | 357 | 0.15% |
+| Coordinates outside CDMX | 51 | 0.02% |
+
+The validation comparing the municipality recorded in the crime source with the municipality obtained through the spatial join shows **99.86% agreement**.
 
 ## 4. ETL pipeline
 
-Flujo general: **RAW → CLEAN → SPATIAL JOIN → POSTGRESQL DW**. Los archivos crudos de `data/raw/` nunca se modifican.
+The general flow is:
 
-### 4.1 Poligonos y delitos
-**Ejecucion:** `docker compose exec app python -m src.etl.crime` (parametro opcional `--csv` para otro año).
+**RAW -> CLEAN -> SPATIAL JOIN -> POSTGRESQL DATA WAREHOUSE**
 
-| Paso | Codigo | Que hace |
+Raw files stored in `data/raw/` are not modified.
+
+### 4.1 Polygons and crime data
+
+The main ETL process is implemented in `src/etl/crime.py`.
+
+| Step | Code | Description |
 |---|---|---|
-| Extract | `src/etl/crime.py` | Lee el CSV de la FGJ y valida las columnas requeridas |
-| Poligonos | `src/geo/polygons.py` | Carga AGEB urbanas y alcaldias, corrige geometrias invalidas, verifica `CVEGEO` unica de 13 caracteres, calcula `area_km2` en EPSG:32614 |
-| Clean | `crime.py` | Elimina duplicados por `_id`, convierte tipos y fechas, limpia texto |
-| Puntos | `crime.py` | Descarta registros sin coordenadas o en cero y crea geometrias de punto (EPSG:4326, reproyectadas al CRS de los poligonos) |
-| Spatial join | `crime.py` | Asigna alcaldia y `CVEGEO` con `predicate="within"` |
-| Salida | `data/processed/` | GeoPackage de delitos con su AGEB y un reporte de calidad en JSON |
+| Extract | `src/etl/crime.py` | Reads the FGJ CSV and validates required columns |
+| Polygons | `src/geo/polygons.py` | Loads urban AGEB and municipality polygons and prepares geographic information |
+| Clean | `crime.py` | Removes duplicates, converts data types and dates, and cleans text |
+| Points | `crime.py` | Validates coordinates and creates point geometries |
+| Spatial join | `crime.py` | Assigns municipality and `CVEGEO` using a spatial join |
+| Output | `data/processed/` | Generates the processed GeoPackage and quality report |
 
-**Resultados (delitos 2023):** 242,392 registros crudos; 0 duplicados; 227,837 asignados a una AGEB urbana (94.00%); coincidencia de alcaldia con el poligono: 99.86%.
+### 4.2 Census and DENUE
 
-### 4.2 Censo y DENUE
-_Pendiente (Persona B)._
+Population and economic data are integrated into the Data Warehouse through dedicated ETL scripts.
+
+Population processing uses the official INEGI Census 2020 AGEB-level records. The population loader aggregates the relevant AGEB records and loads them into `fact_poblacion`.
+
+DENUE processing loads establishment records and assigns them to urban AGEBs using their geographic coordinates. Establishment activity and size information are connected to `dim_actividad_economica` and `dim_tamano`.
+
+### ETL validation results
+
+| Dataset | Total records | Assigned to AGEB | Not assigned |
+|---|---:|---:|---:|
+| Crime | 242,392 | 227,837 | 14,555 |
+| Establishments | 475,331 | 474,167 | 1,164 |
+| Population | 2,431 AGEBs | 2,431 | 0 |
+
+All source identifiers are unique in the loaded fact tables.
 
 ## 5. PostgreSQL/PostGIS and Data Warehouse model
-The Data Warehouse uses a dimensional model based on the urban AGEB as the main geographic unit of analysis. CVEGEO is the main integration key between geographic, crime, demographic, and economic information.
 
-The proposed dimensions are:
+The Data Warehouse uses a dimensional model based on the **urban AGEB** as the main geographic unit of analysis. `CVEGEO` is the primary integration key between geographic, crime, demographic, and economic information.
 
-dim_geografia: one row per urban AGEB, including CVEGEO, alcaldía, area, and geometry.
-dim_fecha: one row per calendar date.
-dim_delito: crime classification information.
-dim_actividad_economica: SCIAN and economic activity classifications.
+### Dimensions
 
-The proposed fact tables are:
+- `dim_geografia`: one row per urban AGEB, including `CVEGEO`, geographic attributes, area, and polygon geometry.
+- `dim_fecha`: one row per calendar date.
+- `dim_hora`: one row per hour, including time-of-day classification.
+- `dim_delito`: crime classification and category information.
+- `dim_actividad_economica`: SCIAN economic activity classifications.
+- `dim_tamano`: establishment-size categories.
 
-fact_delitos: one row per crime incident/case.
-fact_poblacion: population measures by urban AGEB and demographic breakdown.
-fact_establecimientos: one row per economic establishment.
+### Fact tables
 
-The detailed grain, attributes, relationships, and KPI support are documented in docs/warehouse_design.md.
+- `fact_delitos`: one row per crime investigation record.
+- `fact_poblacion`: one row per urban AGEB with population and demographic measures.
+- `fact_establecimientos`: one row per economic establishment.
+
+### Current warehouse counts
+
+| Object | Rows |
+|---|---:|
+| `dim_geografia` | 2,431 |
+| `dim_fecha` | 24,137 |
+| `dim_hora` | 24 |
+| `dim_delito` | 286 |
+| `dim_actividad_economica` | 945 |
+| `dim_tamano` | 7 |
+| `fact_delitos` | 242,392 |
+| `fact_poblacion` | 2,431 |
+| `fact_establecimientos` | 475,331 |
+
+The detailed grain, attributes, relationships, and KPI dependencies are documented in `docs/warehouse_design.md` and `docs/kpi_variables.md`.
 
 ## 6. KPI definitions and formulas
-The Data Warehouse is designed to support the following KPIs:
 
-KPI	Formula
-Total Crime Incidents	Count of crime incidents by CVEGEO
-Crime Rate	Crime incidents / total population × 1,000
-Population Density	Total population / area_km2
-Business Density	Establishments / area_km2
-Retail Density	Retail establishments / area_km2
-Service Density	Service establishments / area_km2
+The Data Warehouse supports the following analytical KPIs:
 
-The required source variables and KPI dependencies are documented in docs/kpi_variables.md
+| KPI | Formula / definition |
+|---|---|
+| Total Crime Incidents | Count of crime incidents by `CVEGEO` |
+| Crime Rate | Crime incidents / total population x 1,000 |
+| Population Density | Total population / `area_km2` |
+| Business Density | Establishments / `area_km2` |
+| Retail Density | Retail establishments / `area_km2` |
+| Service Density | Service establishments / `area_km2` |
+| Total Population | Sum of population by AGEB |
+| Economically Active Population Rate | PEA / population of the corresponding population base |
+| Population by Age Group | Population separated into 0-14, 15-64, and 65+ |
+| Total Businesses | Count of establishments |
+| Businesses per 1,000 Residents | Establishments / population x 1,000 |
+| Dominant Economic Activity | Economic activity with the highest establishment count |
+| Incidents by Type and Time | Crime incidents grouped by crime type and hour |
+| Crime Relative to Business Activity | Crime indicators analyzed together with establishment activity |
+
+When a density or rate cannot be calculated because its denominator is zero, the current SQL views return zero for that metric.
+
 ## 7. Assumptions, data-quality issues and limitations
-_TODO_
+
+The project keeps raw source files unchanged and performs transformations in the ETL pipeline before loading the Data Warehouse.
+
+For crime data, all **242,392** source records are preserved. Records without valid coordinates or without an urban AGEB remain available in the fact table but cannot contribute to AGEB-level spatial KPIs.
+
+The crime spatial integration assigned **227,837 records (94.00%)** to an urban AGEB. The remaining records include cases without valid coordinates, points inside CDMX but outside the available urban AGEB polygons, and coordinates outside CDMX.
+
+For population data, the Census contains 2,433 AGEB-level records, while the geographic layer contains 2,431 compatible AGEBs. The two census records without a matching geographic polygon are excluded from the AGEB-level population fact table.
+
+For DENUE, **475,331 establishments** are processed, with **474,167** assigned to an urban AGEB. The remaining 1,164 establishments have valid coordinates but could not be assigned to an available urban AGEB.
+
+All tested foreign-key and dimension-integrity validations returned zero orphan records.
+
+The main analytical limitation is that crime records without valid geographic assignment cannot be included in spatial comparisons between AGEBs. In addition, the results depend on the quality and geographic precision of the original source coordinates.
 
 ---
 
-## Setup con Docker
+## Setup with Docker
 
-Requisitos: Docker Desktop y Git. No necesitas instalar Python ni PostgreSQL.
+### Requirements
+
+- Docker Desktop
+- Git
+
+Python and PostgreSQL do not need to be installed directly on the host machine because they run through Docker.
 
 ```bash
 git clone <url-del-repo>
 cd cdmx-urban-intelligence
-cp .env.example .env                 # (Windows PowerShell: copy .env.example .env)
-docker compose up -d --build         # levanta PostGIS + contenedor de Python/Jupyter
-docker compose exec app python -m src.check_db   # debe imprimir version de PostGIS
-```
-
-- Jupyter Lab: http://localhost:8888
-- Conectar con DBeaver/pgAdmin: host `localhost`, puerto `5432`, usuario/BD segun `.env`.
-- Ejecutar un script SQL:
-  `docker compose exec -T db psql -U dw_user -d urban_dw < sql/01_schema.sql`
-- Apagar: `docker compose down` (los datos persisten). Borrar la BD: `docker compose down -v`.
-
-## Descarga de datos
-Los datos crudos NO se suben a Git. Descargalos segun `docs/data_sources.md`
-y colocalos en `data/raw/` sin modificarlos.
-
-## Estructura del repositorio
-```
-data/raw, data/processed   datos (ignorados por Git)
-notebooks/                 analisis y exploracion
-src/etl, src/geo, src/analysis   codigo del pipeline
-sql/                       01_schema, 02_load, 03_views
-docs/                      diccionario de datos y diagrama del modelo
-outputs/maps, outputs/figures
-```
-
-## Flujo de trabajo del equipo
-- Una rama por tarea (`feat/...`, `docs/...`) y Pull Request revisado por otro integrante.
-- Fusionar con **merge commit o rebase**, no squash (para conservar commits individuales).
-- Commits pequenos y frecuentes con mensajes claros (`feat:`, `fix:`, `docs:`, `chore:`).
-- Cada integrante configura su `git config user.name` y `user.email` (el del GitHub).
+cp .env.example .env
+docker compose up -d --build
+docker compose exec app python -m src.check_db
