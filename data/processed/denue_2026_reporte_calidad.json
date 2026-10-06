@@ -1,0 +1,24 @@
+{
+  "registros_crudos": 462732,
+  "sin_coordenadas": 0,
+  "coordenadas_en_cero": 0,
+  "coordenadas_fuera_de_rango": 0,
+  "con_coordenadas_utiles": 462732,
+  "registros_salida": 462732,
+  "estatus_asignacion": {
+    "asignado": 461221,
+    "dentro_cdmx_sin_ageb": 1508,
+    "fuera_cdmx": 3,
+    "sin_coordenadas_validas": 0
+  },
+  "suma_estatus": 462732,
+  "reconciliacion_ok": true,
+  "reconciliacion_clave_ageb": {
+    "registros_asignados": 461221,
+    "coinciden": 460430,
+    "no_coinciden": 791,
+    "sin_clave_denue": 0
+  },
+  "agebs_con_establecimientos": 2420,
+  "agebs_sin_establecimientos": 11
+}
