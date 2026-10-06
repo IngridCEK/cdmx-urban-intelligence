@@ -1,0 +1,21 @@
+sector,nombre_sector,grupo
+11,"Agricultura, cría y explotación de animales, aprovechamiento forestal, pesca y caza",otro
+21,Minería,otro
+22,"Generación, transmisión, distribución y comercialización de energía eléctrica; suministro de agua y de gas natural por ductos al consumidor final",otro
+23,Construcción,otro
+31-33,Industrias manufactureras,otro
+43,Comercio al por mayor,otro
+46,Comercio al por menor,comercio al por menor
+48-49,"Transportes, correos y almacenamiento",otro
+51,Información en medios masivos,servicios
+52,Servicios financieros y de seguros,servicios
+53,"Servicios inmobiliarios y de alquiler de bienes muebles e intangibles",servicios
+54,"Servicios profesionales, científicos y técnicos",servicios
+55,Corporativos,servicios
+56,"Servicios de apoyo a los negocios y manejo de residuos, y servicios de remediación",servicios
+61,Servicios educativos,servicios
+62,"Servicios de salud y de asistencia social",servicios
+71,"Servicios de esparcimiento culturales y deportivos, y otros servicios recreativos",servicios
+72,"Servicios de alojamiento temporal y de preparación de alimentos y bebidas",servicios
+81,"Otros servicios excepto actividades gubernamentales",servicios
+93,"Actividades legislativas, gubernamentales, de impartición de justicia y de organismos internacionales y extraterritoriales",otro
