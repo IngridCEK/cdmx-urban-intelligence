@@ -117,4 +117,13 @@ Los KPIs por AGEB usan solo los registros `asignado`. La tolerancia cartografica
 ---
 
 ## 5. Dimensiones de tiempo y tipo de delito (`dim_fecha`, `dim_hora`, `dim_delito`) — Persona C
-_Pendiente. Agregar aquí las columnas finales según `sql/01_schema.sql`._
+
+Estas dimensiones se cargan desde la salida procesada de delitos mediante `src/etl/load_dimensions_delitos.py`.
+
+| Tabla | Grano | Columnas principales |
+|---|---|---|
+| `dim_fecha` | una fila por fecha calendario | `fecha_key`, `fecha`, `dia`, `mes`, `nombre_mes`, `trimestre`, `anio` |
+| `dim_hora` | una fila por hora (0-23) | `hora_key`, `hora`, `franja_horaria`, `parte_dia` |
+| `dim_delito` | una fila por combinación de categoría y delito | `delito_key`, `categoria_delito`, `delito` |
+
+`fecha_key` usa el formato AAAAMMDD y `hora_key` coincide con la hora entera 0-23. Estas llaves se referencian desde `fact_delitos`.
