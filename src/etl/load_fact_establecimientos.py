@@ -1,158 +1,115 @@
-﻿import geopandas as gpd
+"""Carga fact_establecimientos desde la salida procesada de DENUE 05/2026."""
+
+import geopandas as gpd
 import pandas as pd
-from sqlalchemy import create_engine, text
-from src.config import DB_URL
+from sqlalchemy import text
 
-GPKG = "/work/data/processed/denue_2023_ageb.gpkg"
+from src.config import PROCESSED_DIR
+from src.db import get_engine
 
-engine = create_engine(DB_URL)
+GPKG = PROCESSED_DIR / "denue_2026_ageb.gpkg"
+LAYER = "establecimientos"
+FECHA_CORTE = "2026-05-01"
+FUENTE = "DENUE 05/2026 INEGI"
 
-print("Leyendo DENUE...")
 
-gdf = gpd.read_file(GPKG)
+def _nullable(value):
+    return None if pd.isna(value) else value
 
-print(f"Registros leÃ­dos: {len(gdf)}")
 
-# ---------------------------------------------------------
-# Transformar geometrÃ­as al CRS de trabajo
-# ---------------------------------------------------------
+def run():
+    if not GPKG.exists():
+        raise FileNotFoundError(f"No existe {GPKG}. Ejecuta primero src.etl.denue.")
 
-gdf = gdf.to_crs("EPSG:32614")
+    print("Leyendo DENUE 05/2026...")
+    gdf = gpd.read_file(GPKG, layer=LAYER).to_crs("EPSG:32614")
+    print(f"Registros leidos: {len(gdf)}")
 
-print(f"CRS transformado: {gdf.crs}")
+    # fecha_alta viene como periodo (AAAA-MM); PostgreSQL recibe el primer dia del mes.
+    fechas = pd.to_datetime(gdf["fecha_alta"], errors="coerce")
 
-# ---------------------------------------------------------
-# Preparar columnas
-# ---------------------------------------------------------
+    rows = []
+    for pos, row in enumerate(gdf.itertuples(index=False)):
+        geom = row.geometry
+        cvegeo = _nullable(row.CVEGEO)
+        if cvegeo is not None:
+            cvegeo = str(cvegeo).strip()
 
-gdf["establishment_id"] = gdf["id"].astype(str)
+        codigo = _nullable(row.codigo_act)
+        if codigo is not None:
+            codigo = str(codigo).strip()
 
-print("Columnas preparadas.")
+        per_ocu = _nullable(row.per_ocu)
+        if per_ocu is not None:
+            per_ocu = str(per_ocu).strip()
 
-# ---------------------------------------------------------
-# SQL de inserciÃ³n
-# ---------------------------------------------------------
+        status = _nullable(row.estatus_asignacion)
+        if status is None:
+            raise ValueError(f"DENUE sin estatus_asignacion para id={row.id}")
 
-insert_sql = text("""
-    INSERT INTO dw.fact_establecimientos (
-        establishment_id,
-        cvegeo,
-        actividad_key,
-        tamano_key,
-        codigo_act,
-        fecha_alta,
-        establecimiento_count,
-        latitud,
-        longitud,
-        geometry,
-        estatus_asignacion,
-        fuente,
-        fecha_corte
-    )
-    SELECT
-        :establishment_id,
-        :cvegeo,
-        (
-            SELECT actividad_key
-            FROM dw.dim_actividad_economica
-            WHERE codigo_act = :codigo_act
-        ),
-        (
-            SELECT tamano_key
-            FROM dw.dim_tamano
-            WHERE categoria_tamano = :per_ocu
-        ),
-        :codigo_act,
-        :fecha_alta,
-        1,
-        :latitud,
-        :longitud,
-        ST_GeomFromText(:geometry_wkt, 32614),
-        :estatus_asignacion,
-        'DENUE 2023',
-        '2023-11-01'
-    ON CONFLICT (establishment_id) DO NOTHING
-""")
-
-# ---------------------------------------------------------
-# Cargar registros
-# ---------------------------------------------------------
-
-print("Insertando establecimientos...")
-
-with engine.begin() as conn:
-
-    for i, row in gdf.iterrows():
-
-        # GeometrÃ­a
-        geometry_wkt = None
-
-        if row.geometry is not None and not row.geometry.is_empty:
-            geometry_wkt = row.geometry.wkt
-
-        # CVEGEO
-        cvegeo = (
-            None
-            if pd.isna(row["cvegeo_ageb"])
-            else str(row["cvegeo_ageb"])
+        rows.append(
+            {
+                "establishment_id": str(row.id),
+                "cvegeo": cvegeo,
+                "codigo_act": codigo,
+                "per_ocu": per_ocu,
+                "fecha_alta": None if pd.isna(fechas.iloc[pos]) else fechas.iloc[pos].date(),
+                "latitud": _nullable(row.latitud),
+                "longitud": _nullable(row.longitud),
+                "geometry_wkt": None if geom is None or geom.is_empty else geom.wkt,
+                "estatus_asignacion": str(status).strip(),
+                "fuente": FUENTE,
+                "fecha_corte": FECHA_CORTE,
+            }
         )
 
-        # CÃ³digo de actividad
-        codigo_act = (
-            None
-            if pd.isna(row["codigo_act"])
-            else str(row["codigo_act"]).strip()
+    sql = text("""
+        INSERT INTO dw.fact_establecimientos (
+            establishment_id, CVEGEO, actividad_key, tamano_key, codigo_act,
+            fecha_alta, establecimiento_count, latitud, longitud, geometry,
+            estatus_asignacion, fuente, fecha_corte
         )
+        SELECT
+            :establishment_id,
+            :cvegeo,
+            a.actividad_key,
+            t.tamano_key,
+            :codigo_act,
+            :fecha_alta,
+            1,
+            :latitud,
+            :longitud,
+            CASE WHEN :geometry_wkt IS NULL THEN NULL
+                 ELSE ST_GeomFromText(:geometry_wkt, 32614) END,
+            :estatus_asignacion,
+            :fuente,
+            :fecha_corte
+        FROM (SELECT 1) AS seed
+        LEFT JOIN dw.dim_actividad_economica a ON a.codigo_act = :codigo_act
+        LEFT JOIN dw.dim_tamano t ON t.categoria_tamano = :per_ocu
+        ON CONFLICT (establishment_id) DO UPDATE SET
+            CVEGEO = EXCLUDED.CVEGEO,
+            actividad_key = EXCLUDED.actividad_key,
+            tamano_key = EXCLUDED.tamano_key,
+            codigo_act = EXCLUDED.codigo_act,
+            fecha_alta = EXCLUDED.fecha_alta,
+            latitud = EXCLUDED.latitud,
+            longitud = EXCLUDED.longitud,
+            geometry = EXCLUDED.geometry,
+            estatus_asignacion = EXCLUDED.estatus_asignacion,
+            fuente = EXCLUDED.fuente,
+            fecha_corte = EXCLUDED.fecha_corte
+    """)
 
-        # TamaÃ±o
-        per_ocu = (
-            None
-            if pd.isna(row["per_ocu"])
-            else str(row["per_ocu"]).strip()
-        )
+    engine = get_engine()
+    with engine.begin() as conn:
+        # SQLAlchemy ejecuta esta lista como executemany, evitando un round-trip por fila.
+        conn.execute(sql, rows)
+        total = conn.execute(text("SELECT COUNT(*) FROM dw.fact_establecimientos")).scalar()
 
-        # Fecha de alta
-        fecha_alta = (
-            None
-            if pd.isna(row["fecha_alta"])
-            else row["fecha_alta"]
-        )
+    print(f"Registros en fact_establecimientos: {total}")
+    print("Carga de fact_establecimientos completada.")
 
-        # Coordenadas
-        latitud = (
-            None
-            if pd.isna(row["latitud"])
-            else row["latitud"]
-        )
 
-        longitud = (
-            None
-            if pd.isna(row["longitud"])
-            else row["longitud"]
-        )
-
-        # Estado de asignaciÃ³n
-        estatus_asignacion = (
-            "sin_coordenadas_validas"
-            if pd.isna(row["estatus_asignacion"])
-            else str(row["estatus_asignacion"]).strip()
-        )
-
-        params = {
-            "establishment_id": row["establishment_id"],
-            "cvegeo": cvegeo,
-            "codigo_act": codigo_act,
-            "per_ocu": per_ocu,
-            "fecha_alta": fecha_alta,
-            "latitud": latitud,
-            "longitud": longitud,
-            "geometry_wkt": geometry_wkt,
-            "estatus_asignacion": estatus_asignacion
-        }
-
-        conn.execute(insert_sql, params)
-
-        if (i + 1) % 10000 == 0:
-            print(f"Procesados: {i + 1}")
-
-print("Carga de fact_establecimientos completada.")
+if __name__ == "__main__":
+    run()
