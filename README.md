@@ -12,8 +12,7 @@ This project builds a reproducible PostgreSQL/PostGIS Data Warehouse for urban i
 | Demografica | INEGI Censo 2020, Principales resultados por AGEB y manzana urbana (entidad 09) | Una fila por entidad, municipio, localidad, AGEB y manzana (68,941 filas); se usan las 2,433 filas de total por AGEB (`MZA`=000) | `POBTOT`, `POB0_14`, `POB15_64`, `POB65_MAS`, `P_18A24`, `P_12YMAS`, `PEA`, `POCUPADA`, `PDESOCUP`, `PE_INAC`, `VIVTOT`, `TVIVHAB`, `GRAPROES`; clave `ENTIDAD`+`MUN`+`LOC`+`AGEB` -> `CVEGEO` | 4 oct 2026 |
 | Economica | INEGI DENUE 05_2026 (CDMX) | Una fila por establecimiento (462,732) con lat/lon y claves de AGEB | `id`, `codigo_act` (SCIAN 2018), `nombre_act`, `per_ocu`, `tipoUniEco`, `fecha_alta`, `latitud`, `longitud`, `cve_ent`, `cve_mun`, `cve_loc`, `ageb`, `manzana` | 4 oct 2026 |
 | Geografica | INEGI Marco Geoestadistico, Censo 2020 (entidad 09) | Un poligono por AGEB urbana | `CVEGEO`, geometria (`09a.shp`), alcaldias (`09mun.shp`) | 4 oct 2026 |
-| Seguridad | FGJ CDMX - Carpetas de investigacion 2023 | Una fila por carpeta de investigacion (242,392) | `categoria_delito`, `fecha_hecho`, `hora_hecho`, `alcaldia_catalogo`, `latitud`, `longitud` | 4 oct 2026 |Carpeta/incidente con lat/lon | categoria_delito, fecha_hecho, hora_hecho, latitud, longitud | |
-
+| Seguridad | FGJ CDMX - Carpetas de investigacion 2023 | Una fila por carpeta de investigacion (242,392) | `categoria_delito`, `fecha_hecho`, `hora_hecho`, `alcaldia_catalogo`, `latitud`, `longitud` | 4 oct 2026 |
 ## 3. Geographic strategy
 Alternativas consideradas, unidad elegida y integracion lat/lon -> poligono. 
 **Unidad de analisis elegida: AGEB urbana** (INEGI, Marco Geoestadistico del Censo 2020, entidad 09). El analisis cubre 2,431 AGEB urbanas.
@@ -50,7 +49,7 @@ Los delitos (columnas `latitud` y `longitud`) se convierten a puntos en EPSG:432
 | Dentro de la CDMX o dentro de la tolerancia cartografica de 10 km, fuera de AGEB urbana | 408 | 0.17 |
 | Fuera de la CDMX despues de aplicar la tolerancia de 10 km | 0 | 0.00 |
 
-**Validacion:** la alcaldia registrada en el CSV coincide con la obtenida por spatial join en el 99.86% de los casos.
+**Validacion:** la alcaldia registrada en el CSV coincide con la obtenida por spatial join en el 99.84% de los casos.
 
 ## 4. ETL pipeline
 
@@ -207,7 +206,6 @@ docker compose exec app python -m src.check_db   # debe imprimir version de Post
 
 Despues de descargar las fuentes indicadas en `docs/data_sources.md`, ejecutar en este orden:
 
-```bash
 cp .env.example .env
 docker compose up -d --build
 docker compose exec app python -m src.etl.census
@@ -219,7 +217,7 @@ docker compose exec app python -m src.etl.load_dimensions
 docker compose exec app python -m src.etl.load_fact_poblacion
 docker compose exec app python -m src.etl.load_fact_establecimientos
 docker compose exec app python -m src.etl.load_fact_delitos
-```
+docker compose exec app python -m src.analysis.spatial_analysis```
 
 `sql/01_schema.sql` es destructivo porque reconstruye el esquema DW; solo debe ejecutarse cuando se quiera reiniciar completamente la base. Despues de las cargas, ejecutar `sql/03_views.sql` desde DBeaver/psql para crear las vistas analiticas y `dw.vw_kpi_ageb`.
 ## Descarga de datos
