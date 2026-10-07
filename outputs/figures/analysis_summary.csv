@@ -1,0 +1,11 @@
+metric,value
+total_agebs_dw,2431
+agebs_spatial_analysis,2413
+excluded_from_spatial_analysis,18
+spatial_rule,"Queen de primer orden, pesos estandarizados por fila"
+permutations,999
+significance_level_lisa,0.05
+correlations_calculated,3
+global_moran_indicators,2
+bivariate_moran_calculated,1
+note,La asociacion espacial y las correlaciones no implican causalidad.

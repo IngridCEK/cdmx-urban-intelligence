@@ -1,0 +1,4 @@
+relationship,x,y,n,spearman_rho,p_value
+Tasa de delitos vs densidad de establecimientos,crime_rate_per_1000,business_density,2414,0.24305187600535674,8.510679455290772e-34
+Tasa de delitos vs densidad de poblacion,crime_rate_per_1000,population_density,2414,-0.4001838852392167,1.572435892245662e-93
+Densidad de establecimientos vs densidad de poblacion,business_density,population_density,2431,0.4146581531179682,1.1907413044170938e-101
