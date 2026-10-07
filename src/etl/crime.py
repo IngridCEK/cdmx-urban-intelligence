@@ -25,7 +25,7 @@ from src.geo.polygons import load_agebs, load_municipios
 
 DEFAULT_CSV = "carpetas_fgj_2023.csv"
 REQUIRED_COLUMNS = [
-    "_id", "fecha_inicio", "fecha_hecho", "hora_hecho", "delito",
+    "fecha_inicio", "fecha_hecho", "hora_hecho", "delito",
     "categoria_delito", "alcaldia_catalogo", "latitud", "longitud",
 ]
 
@@ -38,6 +38,8 @@ def extract(csv_name: str) -> pd.DataFrame:
     if not path.exists():
         raise FileNotFoundError(f"No existe {path}")
     df = pd.read_csv(path, low_memory=False)
+    # ID tecnico deterministico basado en el orden original del CSV.
+    df["_id"] = range(1, len(df) + 1)
     missing = [c for c in REQUIRED_COLUMNS if c not in df.columns]
     if missing:
         raise ValueError(f"Faltan columnas en el CSV: {missing}")
@@ -184,3 +186,4 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ETL de delitos FGJ CDMX")
     parser.add_argument("--csv", default=DEFAULT_CSV, help="archivo dentro de data/raw/")
     run(parser.parse_args().csv)
+
