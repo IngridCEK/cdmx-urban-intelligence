@@ -83,7 +83,10 @@ def load_kpis():
     ]
 
     for col in numeric_cols:
-        gdf[col] = pd.to_numeric(gdf[col], errors="coerce")
+        gdf[col] = pd.to_numeric(
+            gdf[col],
+            errors="coerce",
+        )
 
     engine.dispose()
 
@@ -101,23 +104,23 @@ def calculate_correlations(gdf):
         (
             "crime_rate_per_1000",
             "business_density",
-            "Tasa de delitos vs densidad de establecimientos",
+            "Crime rate vs business density",
         ),
         (
             "crime_rate_per_1000",
             "population_density",
-            "Tasa de delitos vs densidad de poblacion",
+            "Crime rate vs population density",
         ),
         (
             "business_density",
             "population_density",
-            "Densidad de establecimientos vs densidad de poblacion",
+            "Business density vs population density",
         ),
     ]
 
     results = []
 
-    print("\n=== CORRELACIONES DE SPEARMAN ===")
+    print("\n=== SPEARMAN CORRELATIONS ===")
 
     for x, y, description in relationships:
 
@@ -174,31 +177,41 @@ def build_spatial_weights(gdf):
         "business_density",
     ]
 
-    # Eliminar solamente las observaciones que no tienen los KPI
-    # necesarios para el analisis espacial.
     spatial_gdf = (
-        gdf.dropna(subset=required_variables)
+        gdf.dropna(
+            subset=required_variables
+        )
         .copy()
         .reset_index(drop=True)
     )
 
-    excluded_nulls = len(gdf) - len(spatial_gdf)
+    excluded_nulls = (
+        len(gdf) - len(spatial_gdf)
+    )
 
-    print("\n=== VECINDAD ESPACIAL ===")
-    print(f"AGEB totales: {len(gdf)}")
-    print(f"AGEB excluidas por KPI nulo: {excluded_nulls}")
+    print("\n=== SPATIAL NEIGHBORHOOD ===")
+    print(
+        f"Total AGEBs: {len(gdf)}"
+    )
+    print(
+        f"AGEBs excluded because of NULL KPIs: "
+        f"{excluded_nulls}"
+    )
 
-    # Construccion inicial para detectar islas dentro de la
-    # muestra estadistica valida.
+    # Construccion inicial para detectar islas.
     w_initial = Queen.from_dataframe(
         spatial_gdf,
         use_index=False,
         silence_warnings=True,
     )
 
-    islands = list(w_initial.islands)
+    islands = list(
+        w_initial.islands
+    )
 
-    print(f"Islas Queen: {len(islands)}")
+    print(
+        f"Queen islands: {len(islands)}"
+    )
 
     if islands:
 
@@ -209,7 +222,7 @@ def build_spatial_weights(gdf):
         )
 
         print(
-            "CVEGEO de islas:",
+            "Island CVEGEO:",
             ", ".join(island_codes),
         )
 
@@ -226,7 +239,7 @@ def build_spatial_weights(gdf):
             .reset_index(drop=True)
         )
 
-    # Reconstruir la matriz despues de retirar las islas.
+    # Reconstruir pesos despues de retirar las islas.
     w = Queen.from_dataframe(
         spatial_gdf,
         use_index=False,
@@ -237,25 +250,24 @@ def build_spatial_weights(gdf):
     w.transform = "R"
 
     print(
-        f"AGEB usadas en Moran/LISA: "
+        f"AGEBs used in Moran/LISA: "
         f"{len(spatial_gdf)}"
     )
 
     print(
-        f"Vecinos promedio: "
+        f"Average neighbors: "
         f"{w.mean_neighbors:.2f}"
     )
 
     print(
-        f"Componentes conectados: "
+        f"Connected components: "
         f"{w.n_components}"
     )
 
-    # Comprobacion adicional.
     if w.islands:
         print(
-            "Advertencia: despues del filtrado "
-            f"permanecen {len(w.islands)} islas."
+            "Warning: after filtering, "
+            f"{len(w.islands)} islands remain."
         )
 
     return spatial_gdf, w
@@ -275,16 +287,18 @@ def calculate_global_moran(gdf, w):
 
     results = []
 
-    print("\n=== MORAN GLOBAL ===")
+    print("\n=== GLOBAL MORAN ===")
 
     for indicator in indicators:
 
-        values = gdf[indicator].to_numpy()
+        values = gdf[
+            indicator
+        ].to_numpy()
 
         if np.isnan(values).any():
             raise ValueError(
-                f"{indicator} contiene valores nulos "
-                "despues del filtrado."
+                f"{indicator} contains NULL values "
+                "after filtering."
             )
 
         moran = Moran(
@@ -313,7 +327,9 @@ def calculate_global_moran(gdf, w):
             f"n={len(values)}"
         )
 
-    results_df = pd.DataFrame(results)
+    results_df = pd.DataFrame(
+        results
+    )
 
     results_df.to_csv(
         FIGURES_DIR / "moran_global.csv",
@@ -356,7 +372,10 @@ def calculate_lisa(gdf, w):
     }
 
     result["lisa_cluster"] = [
-        labels.get(q, "NS")
+        labels.get(
+            q,
+            "NS",
+        )
         if p < 0.05
         else "NS"
         for q, p in zip(
@@ -366,8 +385,7 @@ def calculate_lisa(gdf, w):
     ]
 
     print(
-        "\n=== LISA: "
-        "TASA DE DELITOS ==="
+        "\n=== LISA: CRIME RATE ==="
     )
 
     print(
@@ -404,13 +422,13 @@ def calculate_lisa(gdf, w):
         edgecolor="white",
         linewidth=0.15,
         missing_kwds={
-            "label": "Sin datos"
+            "label": "No data"
         },
     )
 
     ax.set_title(
-        "LISA - Tasa de delitos por 1,000 habitantes\n"
-        "Contigüidad Queen, p < 0.05"
+        "LISA - Crime Rate per 1,000 Residents\n"
+        "Queen Contiguity, p < 0.05"
     )
 
     ax.set_axis_off()
@@ -441,8 +459,13 @@ def calculate_bivariate_moran(gdf, w):
     x_name = "crime_rate_per_1000"
     y_name = "business_density"
 
-    x = gdf[x_name].to_numpy()
-    y = gdf[y_name].to_numpy()
+    x = gdf[
+        x_name
+    ].to_numpy()
+
+    y = gdf[
+        y_name
+    ].to_numpy()
 
     moran_bv = Moran_BV(
         x,
@@ -451,11 +474,13 @@ def calculate_bivariate_moran(gdf, w):
         permutations=PERMUTATIONS,
     )
 
-    print("\n=== MORAN BIVARIADO ===")
+    print(
+        "\n=== BIVARIATE MORAN ==="
+    )
 
     print(
-        "Tasa de delitos vs rezago espacial de "
-        "densidad de establecimientos: "
+        "Crime rate vs spatial lag of "
+        "business density: "
         f"I={moran_bv.I:.4f}, "
         f"p_sim={moran_bv.p_sim:.4f}, "
         f"n={len(gdf)}"
@@ -487,27 +512,35 @@ def calculate_bivariate_moran(gdf, w):
 # ---------------------------------------------------------------------
 
 def create_descriptive_maps(gdf):
-    """Genera mapas descriptivos de tres indicadores principales."""
+    """
+    Genera mapas descriptivos de tres indicadores principales.
+
+    Quantile classification is used only for visualization.
+    The original KPI values are not modified and all statistical
+    calculations continue to use the original values.
+    """
 
     variables = [
         (
             "crime_rate_per_1000",
-            "Tasa de delitos por 1,000 habitantes",
+            "Crime Rate per 1,000 Residents",
             "crime_rate_per_1000.png",
         ),
         (
             "business_density",
-            "Densidad de establecimientos por km2",
+            "Business Density per km²",
             "business_density.png",
         ),
         (
             "population_density",
-            "Densidad de poblacion por km2",
+            "Population Density per km²",
             "population_density.png",
         ),
     ]
 
-    print("\n=== MAPAS DESCRIPTIVOS ===")
+    print(
+        "\n=== DESCRIPTIVE MAPS ==="
+    )
 
     for variable, title, filename in variables:
 
@@ -517,12 +550,21 @@ def create_descriptive_maps(gdf):
 
         gdf.plot(
             column=variable,
+            scheme="quantiles",
+            k=5,
+            cmap="YlOrRd",
             legend=True,
             ax=ax,
             edgecolor="white",
             linewidth=0.15,
             missing_kwds={
-                "label": "Sin datos"
+                "color": "lightgrey",
+                "label": "No data",
+            },
+            legend_kwds={
+                "loc": "lower left",
+                "fmt": "{:.1f}",
+                "title": "Quantiles",
             },
         )
 
@@ -544,7 +586,7 @@ def create_descriptive_maps(gdf):
         plt.close(fig)
 
         print(
-            f"Mapa generado: {filename}"
+            f"Map generated: {filename}"
         )
 
 
@@ -563,9 +605,12 @@ def save_analysis_summary(
 
     summary = {
         "total_agebs_dw": len(gdf),
-        "agebs_spatial_analysis": len(spatial_gdf),
+        "agebs_spatial_analysis": len(
+            spatial_gdf
+        ),
         "excluded_from_spatial_analysis": (
-            len(gdf) - len(spatial_gdf)
+            len(gdf)
+            - len(spatial_gdf)
         ),
         "spatial_rule": (
             "Queen de primer orden, "
@@ -573,18 +618,27 @@ def save_analysis_summary(
         ),
         "permutations": PERMUTATIONS,
         "significance_level_lisa": 0.05,
-        "correlations_calculated": len(correlations),
-        "global_moran_indicators": len(global_moran),
-        "bivariate_moran_calculated": len(bivariate_moran),
+        "correlations_calculated": len(
+            correlations
+        ),
+        "global_moran_indicators": len(
+            global_moran
+        ),
+        "bivariate_moran_calculated": len(
+            bivariate_moran
+        ),
         "note": (
-            "La asociacion espacial y las correlaciones "
-            "no implican causalidad."
+            "La asociacion espacial y las "
+            "correlaciones no implican causalidad."
         ),
     }
 
     summary_df = pd.DataFrame(
         list(summary.items()),
-        columns=["metric", "value"],
+        columns=[
+            "metric",
+            "value",
+        ],
     )
 
     summary_df.to_csv(
@@ -599,7 +653,9 @@ def save_analysis_summary(
 
 def main():
 
-    np.random.seed(RANDOM_SEED)
+    np.random.seed(
+        RANDOM_SEED
+    )
 
     print(
         "=== ANALISIS ESPACIAL - FASE 3 ==="
