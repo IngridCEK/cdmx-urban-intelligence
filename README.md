@@ -63,12 +63,12 @@ Flujo general: **RAW → CLEAN → SPATIAL JOIN → POSTGRESQL DW**. Los archivo
 |---|---|---|
 | Extract | `src/etl/crime.py` | Lee el CSV de la FGJ y valida las columnas requeridas |
 | Poligonos | `src/geo/polygons.py` | Carga AGEB urbanas y alcaldias, corrige geometrias invalidas, verifica `CVEGEO` unica de 13 caracteres, calcula `area_km2` en EPSG:32614 |
-| Clean | `crime.py` | Elimina duplicados por `_id`, convierte tipos y fechas, limpia texto |
+| Clean | `crime.py` | Genera un `_id` técnico determinístico según el orden original del CSV, convierte tipos y fechas, limpia texto |
 | Puntos | `crime.py` | Descarta registros sin coordenadas o en cero y crea geometrias de punto (EPSG:4326, reproyectadas al CRS de los poligonos) |
 | Spatial join | `crime.py` | Asigna alcaldia y `CVEGEO` con `predicate="within"` |
 | Salida | `data/processed/` | GeoPackage de delitos con su AGEB y un reporte de calidad en JSON |
 
-**Resultados base (delitos 2023):** 242,392 registros crudos y 227,837 asignados a una AGEB urbana. Con la regla compartida de borde de 10 km, los 51 puntos que antes quedaban apenas fuera del limite pasan a dentro_cdmx_sin_ageb; el reporte de calidad debe regenerarse al ejecutar el ETL.
+**Resultados base (delitos 2023):** 242,392 registros crudos: 227,837 asignados a una AGEB urbana, 408 dentro de CDMX sin AGEB, 0 fuera de CDMX y 14,147 sin coordenadas validas. La regla compartida de borde es de 10 km y el reporte de calidad regenerado esta en `docs/reports/delitos_2023_reporte_calidad.json`.
 
 ### 4.2 Censo y DENUE
 **Ejecucion:**

@@ -31,7 +31,7 @@ Documento compartido. Cada integrante describe las tablas de sus fuentes en su p
 
 | Columna | Origen | Descripción |
 |---|---|---|
-| `_id` | CSV | Identificador del registro en el archivo |
+| `_id` | Derivada | Identificador técnico determinístico generado por el ETL según el orden original de las filas del CSV |
 | `fecha_inicio` | CSV | Fecha en que se abrió la carpeta |
 | `fecha_hecho` | CSV | Fecha en que ocurrió el hecho. Es la fecha usada en el análisis; algunos hechos son de 2022 |
 | `hora_hecho` | CSV | Hora del hecho (HH:MM:SS) |
