@@ -174,3 +174,32 @@ SELECT
         WHERE cvegeo IS NULL
     ) AS establecimientos_sin_ageb
 FROM dw.fact_establecimientos;
+
+-- ============================================================
+-- 9. RECONCILIACION POR ESTATUS
+-- ============================================================
+
+SELECT estatus_asignacion, COUNT(*) AS registros
+FROM dw.fact_delitos
+GROUP BY estatus_asignacion
+ORDER BY estatus_asignacion;
+
+SELECT estatus_asignacion, COUNT(*) AS registros
+FROM dw.fact_establecimientos
+GROUP BY estatus_asignacion
+ORDER BY estatus_asignacion;
+
+
+-- ============================================================
+-- 10. VALIDACION DE CVEGEO EN HECHOS ESPACIALES
+-- ============================================================
+
+SELECT COUNT(*) AS delitos_cvegeo_huerfanos
+FROM dw.fact_delitos f
+LEFT JOIN dw.dim_geografia g ON g.CVEGEO = f.CVEGEO
+WHERE f.CVEGEO IS NOT NULL AND g.CVEGEO IS NULL;
+
+SELECT COUNT(*) AS establecimientos_cvegeo_huerfanos
+FROM dw.fact_establecimientos f
+LEFT JOIN dw.dim_geografia g ON g.CVEGEO = f.CVEGEO
+WHERE f.CVEGEO IS NOT NULL AND g.CVEGEO IS NULL;

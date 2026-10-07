@@ -15,7 +15,7 @@ Documento compartido. Cada integrante describe las tablas de sus fuentes en su p
 | `CVEGEO` | texto (13) | Clave de la AGEB: entidad (2) + municipio (3) + localidad (4) + AGEB (4). Puede contener letras. Llave de integración de todas las capas |
 | `NOMGEO` | texto | Nombre de la alcaldía. Proviene de `09mun.shp` y se asigna a cada AGEB por su clave de municipio |
 | `area_km2` | decimal | Área de la AGEB en km², calculada con la geometría reproyectada a EPSG:32614 (UTM 14N) |
-| `geometry` | polígono | Geometría de la AGEB. Se conserva el CRS original del Marco Geoestadístico |
+| `geometry` | polígono | Geometría MultiPolygon almacenada en el DW en EPSG:32614 |
 
 **Notas:**
 - Solo incluye AGEB urbanas; las zonas rurales no tienen polígono en `09a.shp`.
@@ -31,7 +31,7 @@ Documento compartido. Cada integrante describe las tablas de sus fuentes en su p
 
 | Columna | Origen | Descripción |
 |---|---|---|
-| `_id` | CSV | Identificador del registro en el archivo |
+| `_id` | Derivada | Identificador técnico determinístico generado por el ETL según el orden original de las filas del CSV |
 | `fecha_inicio` | CSV | Fecha en que se abrió la carpeta |
 | `fecha_hecho` | CSV | Fecha en que ocurrió el hecho. Es la fecha usada en el análisis; algunos hechos son de 2022 |
 | `hora_hecho` | CSV | Hora del hecho (HH:MM:SS) |
@@ -52,11 +52,11 @@ Se conservan además las demás columnas originales del CSV (por ejemplo `fiscal
 | Valor | Significado | Registros |
 |---|---|---|
 | `asignado` | Cae dentro de una AGEB urbana | 227,837 |
-| `dentro_cdmx_sin_ageb` | Dentro de la CDMX, fuera de toda AGEB urbana | 357 |
-| `fuera_cdmx` | Tiene coordenadas, pero fuera de la CDMX | 51 |
+| `dentro_cdmx_sin_ageb` | Dentro de la CDMX o a <=10 km del limite, fuera de toda AGEB urbana | 408 |
+| `fuera_cdmx` | Tiene coordenadas y queda a mas de 10 km del limite de la CDMX | 0 |
 | `sin_coordenadas_validas` | Sin latitud/longitud útiles (nulas, cero o fuera de rango) | 14,147 |
 
-Los KPIs por AGEB usan solo los registros `asignado`.
+Los KPIs por AGEB usan solo los registros `asignado`. La tolerancia cartografica compartida es de 10 km (`BORDER_TOLERANCE_M=10000`) y se aplica tanto a delitos como a DENUE.
 
 ---
 
@@ -117,4 +117,13 @@ Los KPIs por AGEB usan solo los registros `asignado`.
 ---
 
 ## 5. Dimensiones de tiempo y tipo de delito (`dim_fecha`, `dim_hora`, `dim_delito`) — Persona C
-_Pendiente. Agregar aquí las columnas finales según `sql/01_schema.sql`._
+
+Estas dimensiones se cargan desde la salida procesada de delitos mediante `src/etl/load_dimensions_delitos.py`.
+
+| Tabla | Grano | Columnas principales |
+|---|---|---|
+| `dim_fecha` | una fila por fecha calendario | `fecha_key`, `fecha`, `dia`, `mes`, `nombre_mes`, `trimestre`, `anio` |
+| `dim_hora` | una fila por hora (0-23) | `hora_key`, `hora`, `franja_horaria`, `parte_dia` |
+| `dim_delito` | una fila por combinación de categoría y delito | `delito_key`, `categoria_delito`, `delito` |
+
+`fecha_key` usa el formato AAAAMMDD y `hora_key` coincide con la hora entera 0-23. Estas llaves se referencian desde `fact_delitos`.

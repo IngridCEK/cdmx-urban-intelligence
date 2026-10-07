@@ -3,17 +3,17 @@ services:
     image: postgis/postgis:16-3.4
     container_name: urban_dw_db
     environment:
-      POSTGRES_DB: urban_dw
-      POSTGRES_USER: dw_user
-      POSTGRES_PASSWORD: dw_pass
+      POSTGRES_DB: ${DB_NAME:-urban_dw}
+      POSTGRES_USER: ${DB_USER:-dw_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-dw_pass}
     ports:
-    - "5433:5432"
+      - "${DB_PORT:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./sql/00_extensions.sql:/docker-entrypoint-initdb.d/00_extensions.sql:ro
       - ./sql/01_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U dw_user -d urban_dw"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-dw_user} -d ${DB_NAME:-urban_dw}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -31,12 +31,13 @@ services:
     environment:
       DB_HOST: db
       DB_PORT: "5432"
-      DB_NAME: urban_dw
-      DB_USER: dw_user
-      DB_PASSWORD: dw_pass
-      STUDY_ENT: "09"
-      STUDY_MUN: ""
-      WORK_CRS: EPSG:32614
+      DB_NAME: ${DB_NAME:-urban_dw}
+      DB_USER: ${DB_USER:-dw_user}
+      DB_PASSWORD: ${DB_PASSWORD:-dw_pass}
+      STUDY_ENT: ${STUDY_ENT:-09}
+      STUDY_MUN: ${STUDY_MUN:-}
+      WORK_CRS: ${WORK_CRS:-EPSG:32614}
+      BORDER_TOLERANCE_M: ${BORDER_TOLERANCE_M:-10000}
     depends_on:
       db:
         condition: service_healthy

@@ -69,7 +69,7 @@
 ## Limitaciones conocidas
 - El Censo por AGEB solo cubre AGEB **urbanas**; 357 delitos caen en la CDMX pero fuera de toda AGEB urbana (zonas rurales o sin AGEB).
 - Indicadores del Censo con menos de 3 unidades vienen con asterisco -> se tratan como faltantes.
-- 14,147 registros de delitos (5.84%) no traen coordenadas válidas y 51 caen fuera de la CDMX.
+- 14,147 registros de delitos (5.84%) no traen coordenadas válidas. Los 51 puntos que quedaban apenas fuera del polígono administrativo están a 1.2 m o menos del límite y, con la tolerancia cartográfica compartida de 10 km, se conservan como `dentro_cdmx_sin_ageb`.
 - El archivo está organizado por fecha de inicio de la carpeta (`anio_inicio`), no por fecha del hecho: algunos hechos son de 2022.
 - Desfase temporal entre fuentes: Censo 2020, DENUE reciente y delitos de 2023.
 - Para áreas y distancias se usa `WORK_CRS` (EPSG:32614).

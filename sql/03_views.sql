@@ -106,11 +106,11 @@ SELECT
     g.nomgeo,
     g.area_km2,
 
-    COALESCE(p.pob_total, 0) AS poblacion_total,
-    COALESCE(p.pob_0_14, 0) AS poblacion_0_14,
-    COALESCE(p.pob_15_64, 0) AS poblacion_15_64,
-    COALESCE(p.pob_65_mas, 0) AS poblacion_65_mas,
-    COALESCE(p.pea, 0) AS pea,
+    p.pob_total AS poblacion_total,
+    p.pob_0_14 AS poblacion_0_14,
+    p.pob_15_64 AS poblacion_15_64,
+    p.pob_65_mas AS poblacion_65_mas,
+    p.pea AS pea,
 
     COALESCE(d.total_delitos, 0) AS total_delitos,
     COALESCE(d.total_incidentes, 0) AS total_incidentes,
@@ -124,7 +124,7 @@ SELECT
             / p.pob_total * 1000,
             2
         )
-        ELSE 0
+        ELSE NULL
     END AS delitos_por_1000_habitantes,
 
     CASE
@@ -134,7 +134,7 @@ SELECT
             / g.area_km2,
             2
         )
-        ELSE 0
+        ELSE NULL
     END AS delitos_por_km2
 
 FROM dw.dim_geografia g
@@ -207,3 +207,91 @@ GROUP BY
     d.trimestre,
     d.anio
 ORDER BY d.fecha;
+
+-- ============================================================
+-- 8. KPIs integrados por AGEB
+-- Los hechos se agregan por separado antes de combinarse.
+-- Tasas sin denominador valido devuelven NULL, no cero.
+-- ============================================================
+
+DROP VIEW IF EXISTS dw.vw_kpi_ageb;
+
+CREATE VIEW dw.vw_kpi_ageb AS
+WITH delitos AS (
+    SELECT CVEGEO, SUM(incident_count) AS total_crime_incidents
+    FROM dw.fact_delitos
+    WHERE CVEGEO IS NOT NULL
+    GROUP BY CVEGEO
+),
+negocios AS (
+    SELECT
+        e.CVEGEO,
+        COUNT(*) AS total_businesses,
+        COUNT(*) FILTER (WHERE a.clasificacion = 'comercio al por menor') AS retail_businesses,
+        COUNT(*) FILTER (WHERE a.clasificacion = 'servicios') AS service_businesses
+    FROM dw.fact_establecimientos e
+    LEFT JOIN dw.dim_actividad_economica a ON a.actividad_key = e.actividad_key
+    WHERE e.CVEGEO IS NOT NULL
+    GROUP BY e.CVEGEO
+),
+sector_counts AS (
+    SELECT e.CVEGEO, a.sector_scian, COUNT(*) AS n
+    FROM dw.fact_establecimientos e
+    JOIN dw.dim_actividad_economica a ON a.actividad_key = e.actividad_key
+    WHERE e.CVEGEO IS NOT NULL
+    GROUP BY e.CVEGEO, a.sector_scian
+),
+sector_rank AS (
+    SELECT
+        CVEGEO,
+        sector_scian,
+        ROW_NUMBER() OVER (
+            PARTITION BY CVEGEO
+            ORDER BY n DESC, sector_scian ASC
+        ) AS rn
+    FROM sector_counts
+)
+SELECT
+    g.CVEGEO,
+    g.NOMGEO,
+    g.area_km2,
+    COALESCE(d.total_crime_incidents, 0) AS total_crime_incidents,
+    p.pob_total AS total_population,
+    p.pob_0_14,
+    p.pob_15_64,
+    p.pob_65_mas,
+    p.pob_12_mas,
+    p.pea,
+    COALESCE(n.total_businesses, 0) AS total_businesses,
+    COALESCE(n.retail_businesses, 0) AS retail_businesses,
+    COALESCE(n.service_businesses, 0) AS service_businesses,
+    CASE WHEN p.pob_total > 0
+         THEN ROUND(COALESCE(d.total_crime_incidents, 0)::numeric / p.pob_total * 1000, 2)
+         ELSE NULL END AS crime_rate_per_1000,
+    CASE WHEN g.area_km2 > 0 AND p.pob_total IS NOT NULL
+         THEN ROUND(p.pob_total::numeric / g.area_km2, 2)
+         ELSE NULL END AS population_density,
+    CASE WHEN g.area_km2 > 0
+         THEN ROUND(COALESCE(n.total_businesses, 0)::numeric / g.area_km2, 2)
+         ELSE NULL END AS business_density,
+    CASE WHEN g.area_km2 > 0
+         THEN ROUND(COALESCE(n.retail_businesses, 0)::numeric / g.area_km2, 2)
+         ELSE NULL END AS retail_density,
+    CASE WHEN g.area_km2 > 0
+         THEN ROUND(COALESCE(n.service_businesses, 0)::numeric / g.area_km2, 2)
+         ELSE NULL END AS service_density,
+    CASE WHEN p.pob_12_mas > 0 AND p.pea IS NOT NULL
+         THEN ROUND(p.pea::numeric / p.pob_12_mas * 100, 2)
+         ELSE NULL END AS economically_active_population_rate,
+    CASE WHEN p.pob_total > 0
+         THEN ROUND(COALESCE(n.total_businesses, 0)::numeric / p.pob_total * 1000, 2)
+         ELSE NULL END AS businesses_per_1000_residents,
+    COALESCE(sr.sector_scian, 'sin_establecimientos') AS dominant_economic_activity,
+    CASE WHEN COALESCE(n.total_businesses, 0) > 0
+         THEN ROUND(COALESCE(d.total_crime_incidents, 0)::numeric / n.total_businesses, 4)
+         ELSE NULL END AS crime_per_business
+FROM dw.dim_geografia g
+LEFT JOIN dw.fact_poblacion p ON p.CVEGEO = g.CVEGEO
+LEFT JOIN delitos d ON d.CVEGEO = g.CVEGEO
+LEFT JOIN negocios n ON n.CVEGEO = g.CVEGEO
+LEFT JOIN sector_rank sr ON sr.CVEGEO = g.CVEGEO AND sr.rn = 1;

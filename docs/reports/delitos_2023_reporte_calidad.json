@@ -1,0 +1,19 @@
+{
+  "registros_crudos": 242392,
+  "duplicados_eliminados": 0,
+  "registros_tras_limpieza": 242392,
+  "sin_coordenadas": 14147,
+  "coordenadas_en_cero": 0,
+  "coordenadas_fuera_de_rango": 0,
+  "con_coordenadas_utiles": 228245,
+  "estatus_asignacion": {
+    "asignado": 227837,
+    "dentro_cdmx_sin_ageb": 408,
+    "fuera_cdmx": 0,
+    "sin_coordenadas_validas": 14147
+  },
+  "reconciliacion_ok": true,
+  "asignados_a_ageb": 227837,
+  "pct_asignados_a_ageb": 94.0,
+  "pct_coincidencia_alcaldia": 99.84
+}

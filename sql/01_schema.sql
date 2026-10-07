@@ -256,7 +256,8 @@ CREATE TABLE dw.fact_establecimientos (
     CHECK (
         estatus_asignacion IN (
             'asignado',
-            'coordenada_sin_ageb',
+            'dentro_cdmx_sin_ageb',
+            'fuera_cdmx',
             'sin_coordenadas_validas'
         )
     ),

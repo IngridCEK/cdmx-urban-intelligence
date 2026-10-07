@@ -20,7 +20,7 @@ import unicodedata
 import geopandas as gpd
 import pandas as pd
 
-from src.config import PROCESSED_DIR, RAW_DIR
+from src.config import BORDER_TOLERANCE_M, PROCESSED_DIR, RAW_DIR
 from src.geo.polygons import load_agebs, load_municipios
 
 DEFAULT_CSV = "carpetas_fgj_2023.csv"
@@ -38,6 +38,7 @@ def extract(csv_name: str) -> pd.DataFrame:
     if not path.exists():
         raise FileNotFoundError(f"No existe {path}")
     df = pd.read_csv(path, low_memory=False)
+    # ID tecnico deterministico basado en el orden original del CSV.
     df["_id"] = range(1, len(df) + 1)
     missing = [c for c in REQUIRED_COLUMNS if c not in df.columns]
     if missing:
@@ -103,11 +104,17 @@ def _first_match(left, right, cols):
 def assign_polygons(pts, agebs, munis):
     """Asigna alcaldia (poligono), CVEGEO de AGEB y estatus a cada punto."""
     j_mun = _first_match(pts, munis, ["NOMGEO"])
-    dentro_cdmx = j_mun["NOMGEO"].notna()
     pts["alcaldia_geo"] = j_mun["NOMGEO"]
 
     j_ageb = _first_match(pts, agebs, ["CVEGEO"])
     pts["CVEGEO"] = j_ageb["CVEGEO"]
+
+    # Se usa la misma tolerancia de borde que DENUE. Esto evita clasificar
+    # como fuera de CDMX puntos a pocos metros del limite por diferencias
+    # cartograficas entre fuentes.
+    cdmx = munis.to_crs(pts.crs).geometry.union_all()
+    distance_m = pts.geometry.distance(cdmx)
+    dentro_cdmx = pts["alcaldia_geo"].notna() | distance_m.le(BORDER_TOLERANCE_M)
 
     pts["estatus_asignacion"] = "fuera_cdmx"
     pts.loc[dentro_cdmx, "estatus_asignacion"] = "dentro_cdmx_sin_ageb"
@@ -179,3 +186,4 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ETL de delitos FGJ CDMX")
     parser.add_argument("--csv", default=DEFAULT_CSV, help="archivo dentro de data/raw/")
     run(parser.parse_args().csv)
+
